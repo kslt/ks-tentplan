@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Kasper Sjöström. All rights reserved. www.kswebb.se
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');

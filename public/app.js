@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Kasper Sjöström. All rights reserved. www.kswebb.se
 let currentDb = null;
 
 function getPersonClass(person) {
