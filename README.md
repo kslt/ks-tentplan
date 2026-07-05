@@ -25,7 +25,7 @@ PORT=[YOUR SERVICE PORT]
 - CSS<br>
 
 <h2>📄 Licens</h2>
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. 
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.<br>
 What this means for you:<br>
     - Open Source: You are free to use, study, share, and modify the code.<br>
     - Share-Alike: If you modify this software and run it as a service over a network (e.g., as a web portal or backend service), 
