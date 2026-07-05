@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tältplanering - Scoutläger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-header">
+        <h1>🏕️ Tältplaneringsverktyget TentPlan - för Scoutlägret</h1>
+    </div>
+    <div class="dashboard-header">
+        <div id="status-container" class="status-box">Laddar status...</div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="autoAssign()" style="background-color: #fbc02d; color: #333; font-weight: bold;">✨ Auto-fördela</button>
+            <button onclick="clearAssignments()" style="background-color: #e53935; color: white; font-weight: bold;">🔄 Töm alla tält</button>
+            <button onclick="window.location.href='/api/report'">📄 PDF-rapport</button>
+        </div>
+    </div>
+    <div style="text-align: right; margin-bottom: 20px;">
+        <button onclick="toggleInventory()" style="background-color: #546e7a; padding: 8px 16px; font-size: 14px;">⚙️ Hantera Kårens Tältlager</button>
+    </div>
+    <div id="inventory-section" style="display: none; background: #eceff1; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #cfd8dc;">
+        <h2 style="margin-top: 0; color: #37474f;">⛺ Kårens Tältlager (Inventarie)</h2>
+        <p style="font-size: 14px; margin-top: -10px; color: #546e7a;">Här anger du vilka tälttyper kåren äger. Dessa används sedan för att bygga upp lägret.</p>
+        <div id="inventory-list" style="margin-bottom: 20px;">
+            </div>
+        <h3 style="font-size: 16px; border-top: 1px solid #cfd8dc; padding-top: 15px; margin-bottom: 10px;">➕ Lägg till ny tälttyp</h3>
+        <div class="form-group" style="flex-wrap: wrap;">
+            <input type="text" id="inv-id" placeholder="Unikt ID (t.ex. t3)" style="width: 120px;">
+            <input type="text" id="inv-name" placeholder="Namn (t.ex. Militärtält 20)" style="flex: 1; min-width: 200px;">
+            <input type="number" id="inv-cap" placeholder="Kapacitet (pers)" style="width: 130px;">
+            <input type="number" id="inv-qty" placeholder="Antal kåren äger" style="width: 130px;">
+            <button onclick="addInventoryTent()" style="background-color: #546e7a;">Spara typ</button>
+        </div>
+    </div>
+    <div class="control-panel">
+        <div class="tent-card card-form">
+            <h3>➕ Lägg till deltagare</h3>
+            <div class="form-group">
+                <input type="text" id="new-person-name" placeholder="För- och efternamn">
+                <select id="new-person-group">
+                    <option value="leaders">Ledare</option>
+                    <option value="sparare">Spårare</option>
+                    <option value="upptackare">Upptäckare</option>
+                    <option value="aventyrare">Äventyrare</option>
+                </select>
+                <button onclick="addPerson()">Spara</button>
+            </div>
+        </div>
+        <div class="tent-card card-form">
+            <h3>⛺ Slå upp ett nytt tält</h3>
+            <div class="form-group">
+                <select id="new-tent-type">
+                    </select>
+                <button onclick="addTent()">Slå upp</button>
+            </div>
+        </div>
+    </div>
+    <h2>Aktuell Tältindelning</h2>
+    <div id="tents-grid" class="tents-grid">
+    </div>
+    <h2>Oplacerade Deltagare</h2>
+    <div id="unassigned-pool" class="tents-grid" style="background: #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 30px; min-height: 50px;">
+    </div>
+    <footer style="margin-top: 60px; text-align: center; font-size: 14px; color: #546e7a; border-top: 1px solid #cfd8dc; padding-top: 20px; padding-bottom: 20px;">
+        Björsäters scoutkårs tältplaneringsverktyg | Alltid redo!<br>
+        Utvecklat av och i samarbete med Kasper på KS Webb (<a href="https://www.kswebb.se" target="_blank">www.kswebb.se</a>)<br>
+        <img src="style/img/logo-nodejs-transp-271x72.svg" alt="KS Webb logga" style="max-height: 40px; margin-top: 10px;" onerror="this.style.display='none'">
+    </footer>
+    <script src="app.js"></script>
+</body>
+</html>
