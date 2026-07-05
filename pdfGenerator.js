@@ -42,16 +42,15 @@ function generatePDF(db, outputPath, callback) {
     db.inventory.forEach(tent => {
         const needed = packedTents[tent.id] || 0;
         const isEgetBoende = tent.name.toLowerCase() === 'eget boende';
-        
-        // FIX: Anpassa texten i plocklistan för Eget boende så att den döljer "Ni äger X st"
+
         if (isEgetBoende) {
-            doc.text(`- ${tent.name}: ${needed} st`);
-        } else {
-            doc.text(`- ${tent.name}: ${needed} st (Ni äger ${tent.quantityOwned} st)`);
+            return; 
         }
+
+        doc.text(`- ${tent.name}: ${needed} st (Ni äger ${tent.quantityOwned} st)`);
         
-        // Stäng av varningen under plocklistan om det är Eget boende
-        if (!isEgetBoende && needed > tent.quantityOwned) {
+        // Varna om ni har planerat in fler tält än ni äger
+        if (needed > tent.quantityOwned) {
             doc.fillColor('red')
                .text(`  VARNING: Ni har planerat in fler ${tent.name} än ni äger! Saknas: ${needed - tent.quantityOwned} st`)
                .fillColor('black');
