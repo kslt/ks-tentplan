@@ -25,10 +25,10 @@ PORT=[YOUR SERVICE PORT]
 <h2>📄 Licens</h2>
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. 
 What this means for you:
-*   Open Source: You are free to use, study, share, and modify the code.
-*   Share-Alike: If you modify this software and run it as a service over a network (e.g., as a web portal or backend service), 
+- Open Source: You are free to use, study, share, and modify the code.
+- Share-Alike: If you modify this software and run it as a service over a network (e.g., as a web portal or backend service), 
 you are **required** to make your modified source code publicly available under the same AGPL-3.0 license.
-*   Attribution: You must retain all copyright notices and provide credit to the original author.
+- Attribution: You must retain all copyright notices and provide credit to the original author.
 
 Commercial Use
 You are free to use this software commercially, provided that you comply with the terms of the AGPL-3.0. 
