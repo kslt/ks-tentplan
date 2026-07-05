@@ -21,6 +21,8 @@ PORT=[YOUR SERVICE PORT]
 
 <h2>🧰 Technologies</h2>
 - JavaScript<br>
+- HTML<br>
+- CSS<br>
 
 <h2>📄 Licens</h2>
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. 
