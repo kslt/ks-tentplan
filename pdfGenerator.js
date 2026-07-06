@@ -19,6 +19,7 @@ function generatePDF(db, version, outputPath, callback) {
         if (db.participants.scouts.sparare.includes(name)) return 'Spårare';
         if (db.participants.scouts.upptackare.includes(name)) return 'Upptäckare';
         if (db.participants.scouts.aventyrare.includes(name)) return 'Äventyrare';
+        if (db.participants.scouts.ledarbarn.includes(name)) return 'Ledarbarn';
         return 'Okänd';
     }
 

@@ -84,7 +84,7 @@ h3 {
     font-weight: bold;
 }
 
-.status-success { background-color: #c8e6c9; color: #2e7d32; }
+.status-success { background-color: #c8e6c9; color: #193E19; }
 .status-warning { background-color: #ffcc80; color: #e65100; }
 
 /* --- KONTROLLPANEL (Lägg till deltagare/tält) --- */
@@ -142,17 +142,42 @@ h3 {
     border-radius: 15px;
     margin: 4px;
     font-size: 14px;
-    cursor: grab; /* Visar en hand-ikon när man hovrar */
+    cursor: grab;
 }
 
 .person-tag:active {
-    cursor: grabbing; /* Knuten hand när man drar */
+    cursor: grabbing;
 }
 
-.person-tag.leader { background: #bbdefb; color: #1565c0; }       /* Blå för ledare */
-.person-tag.sparare { background: #ffecb3; color: #ff8f00; }      /* Gul/Orange för Spårare */
-.person-tag.upptackare { background: #c8e6c9; color: #2e7d32; }   /* Ljusgrön för Upptäckare */
-.person-tag.aventyrare { background: #e1bee7; color: #6a1b9a; }   /* Lila för Äventyrare */
+/* Blå för ledare */
+.person-tag.leader { 
+  background: #e3f2fd; 
+  color: #0d47a1; 
+}      
+
+/* Gul/Orange för Spårare */
+.person-tag.sparare { 
+  background: #fff3e0; 
+  color: #bf360c; 
+}      
+
+/* Ljusgrön för Upptäckare */
+.person-tag.upptackare { 
+  background: #e8f5e9; 
+  color: #1b5e20; 
+}
+
+/* Lila för Äventyrare */
+.person-tag.aventyrare { 
+  background: #f3e5f5;
+  color: #4a148c;
+}
+
+/* Ljuslila för Ledarbarn */
+.person-tag.ledarbarn { 
+  background: #ede7f6;
+  color: #311b92;
+}
 
 /* --- KNAPPAR --- */
 button {
@@ -189,7 +214,7 @@ button:hover {
     cursor: pointer;
     transition: all 0.2s ease-in-out;
     background-color: #e0e0e0; /* Diskret ljusgrå för inaktiv */
-    color: #546e7a;            /* Mörkgrå text för inaktiv */
+    color: #37474E;            /* Mörkgrå text för inaktiv */
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); /* Liten inre skugga */
 }
 

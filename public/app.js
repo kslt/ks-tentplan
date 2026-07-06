@@ -6,6 +6,7 @@ function getPersonClass(person) {
     if (currentDb.participants.scouts.sparare.includes(person)) return 'sparare';
     if (currentDb.participants.scouts.upptackare.includes(person)) return 'upptackare';
     if (currentDb.participants.scouts.aventyrare.includes(person)) return 'aventyrare';
+    if (currentDb.participants.scouts.ledarbarn.includes(person)) return 'ledarbarn';
     return '';
 }
 
@@ -42,7 +43,8 @@ function renderSystem() {
         ...currentDb.participants.leaders,
         ...currentDb.participants.scouts.sparare,
         ...currentDb.participants.scouts.upptackare,
-        ...currentDb.participants.scouts.aventyrare
+        ...currentDb.participants.scouts.aventyrare,
+        ...currentDb.participants.scouts.ledarbarn
     ];
 
     let placedParticipants = [];
@@ -56,13 +58,13 @@ function renderSystem() {
         card.ondragover = (e) => e.preventDefault();
         card.setAttribute('ondrop', `handleDrop(event, ${assignment.tentNumber})`);
 
-        let occupantsHtml = '';
+       let occupantsHtml = '';
         assignment.occupants.forEach(person => {
             placedParticipants.push(person);
-            const isLeader = currentDb.participants.leaders.includes(person);
+            const personClass = getPersonClass(person);
             
             occupantsHtml += `
-                <span class="person-tag ${isLeader ? 'leader' : ''}" 
+                <span class="person-tag ${personClass}" 
                       draggable="true" 
                       ondragstart="handleDragStart(event, '${person}', ${index})">
                     ${person}
@@ -91,7 +93,7 @@ function renderSystem() {
         if (isOverfull) {
             countText = `<span style="color: #d32f2f; font-weight: bold;">⚠️ ${countText} (Överfullt!)</span>`;
         } else {
-            countText = `<span style="color: #388e3c; font-weight: bold;">${countText}</span>`;
+            countText = `<span style="color: #235726; font-weight: bold;">${countText}</span>`;
         }
 
         const cardSubtitle = isEgetBoende 
@@ -189,7 +191,7 @@ async function fetchStatus() {
         statusContainer.className = 'status-box ' + (status.isEnough ? 'status-success' : 'status-warning');
         statusContainer.innerHTML = `
             ${status.message}<br>
-            <span style="font-weight:normal; font-size: 14px;">
+            <span style="font-weight:normal; font-size: 14px; color: #1A421A;">
                 Kapacitet: ${status.totalCapacity} | Deltagare: ${status.totalPeople}
             </span>
         `;
@@ -556,7 +558,7 @@ function updateMapUI() {
                  <div style="background: #eceff1; border: 1px solid #cfd8dc; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; opacity: 0.7; flex-wrap: wrap; gap: 5px;">
                     <span>✅ ${tent.customName || tent.tentNumber}</span>
                     <div style="display: flex; gap: 5px;">
-                        <button onclick="rotateTentOnMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto; background-color: #0288d1;">Vänd 🔄</button>
+                        <button onclick="rotateTentOnMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto; background-color: #0288d1; color: #000000;">Vänd 🔄</button>
                         <button onclick="removeTentFromMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto; background-color: #d32f2f;">Ta bort ❌</button>
                     </div>
                 </div>

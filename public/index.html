@@ -19,7 +19,7 @@
             <div id="status-container" class="status-box">Laddar status...</div>
             <div style="display: flex; gap: 10px;">
                 <button onclick="autoAssign()" style="background-color: #fbc02d; color: #333; font-weight: bold;">✨ Auto-fördela</button>
-                <button onclick="clearAssignments()" style="background-color: #e53935; color: white; font-weight: bold;">🔄 Töm alla tält</button>
+                <button onclick="clearAssignments()" style="background-color: #A71816; color: #FAFAFA; font-weight: bold;">🔄 Töm alla tält</button>
                 <button onclick="window.location.href='/api/report'">📄 PDF-rapport</button>
             </div>
         </div>
@@ -33,16 +33,22 @@
                 </div>
             <h3 style="font-size: 16px; border-top: 1px solid #cfd8dc; padding-top: 15px; margin-bottom: 10px;">➕ Lägg till ny byggnad</h3>
             <div class="form-group" style="flex-wrap: wrap; gap: 8px;">
+                <label for="inv-id" style="font-weight: bold; margin-right: 5px;">ID:</label>
                 <input type="text" id="inv-id" placeholder="ID (t.ex. t3)" style="width: 80px;">
+                <label for="inv-name" style="font-weight: bold; margin-right: 5px;">Namn:</label>
                 <input type="text" id="inv-name" placeholder="Namn" style="flex: 1; min-width: 120px;">
+                <label for="inv-cap" style="font-weight: bold; margin-right: 5px;">Kapacitet:</label>
                 <input type="number" id="inv-cap" placeholder="Pers" style="width: 60px;">
+                <label for="inv-qty" style="font-weight: bold; margin-right: 5px;">Antal:</label>
                 <input type="number" id="inv-qty" placeholder="Antal" style="width: 60px;">
                 
                 <select id="inv-shape" style="padding: 10px; border: 1px solid #ccc; border-radius: 4px; width: 110px;">
                     <option value="circle">Runt (Ø)</option>
                     <option value="rectangle">Fyrkantigt</option>
                 </select>
+                <label for="inv-width" style="font-weight: bold; margin-right: 5px;">Bredd/Diam:</label>
                 <input type="number" id="inv-width" placeholder="Bredd/Diam (m)" step="0.1" style="width: 120px;">
+                <label for="inv-length" style="font-weight: bold; margin-right: 5px;">Längd:</label>
                 <input type="number" id="inv-length" placeholder="Längd (m)" step="0.1" style="width: 90px;" title="Lämna tom om tältet är runt">
                 
                 <button onclick="addInventoryTent()" style="background-color: #546e7a;">Spara typ</button>
@@ -50,14 +56,26 @@
         </div>
         <div class="control-panel">
             <div class="tent-card card-form">
-                <h3>➕ Lägg till deltagare</h3>
+                <h3 style="margin-top: 0;">➕ Lägg till deltagare</h3>
+                
+                <div style="margin-bottom: 15px; font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <strong style="color: #546e7a;">Färgkoder:</strong>
+                    <span class="person-tag leader" style="margin: 0; padding: 3px 8px; font-size: 13px; cursor: default; display: inline-block;">Ledare</span>
+                    <span class="person-tag sparare" style="margin: 0; padding: 3px 8px; font-size: 13px; cursor: default; display: inline-block;">Spårare</span>
+                    <span class="person-tag upptackare" style="margin: 0; padding: 3px 8px; font-size: 13px; cursor: default; display: inline-block;">Upptäckare</span>
+                    <span class="person-tag aventyrare" style="margin: 0; padding: 3px 8px; font-size: 13px; cursor: default; display: inline-block;">Äventyrare</span>
+                    <span class="person-tag ledarbarn" style="margin: 0; padding: 3px 8px; font-size: 13px; cursor: default; display: inline-block;">Ledarbarn</span>
+                </div>
+
                 <div class="form-group">
+                    <label for="new-person-name" style="font-weight: bold; margin-right: 5px;">Namn:</label>
                     <input type="text" id="new-person-name" placeholder="För- och efternamn">
                     <select id="new-person-group">
                         <option value="leaders">Ledare</option>
                         <option value="sparare">Spårare</option>
                         <option value="upptackare">Upptäckare</option>
                         <option value="aventyrare">Äventyrare</option>
+                        <option value="ledarbarn">Ledarbarn</option>
                     </select>
                     <button onclick="addPerson()">Spara</button>
                 </div>
@@ -82,13 +100,16 @@
         <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
             <div style="flex: 1; min-width: 280px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <h3 style="margin-top: 0; color: var(--scout-dark);">🗺️ Kartinställningar</h3>
+                <label style="font-weight: bold; font-size: 14px;">1. Ladda upp kartbild:</label>
+                <label for="mapUpload" style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Välj en bildfil (JPEG, PNG, etc.) som visar lägerområdet.</label>
                 <input type="file" id="mapUpload" accept="image/*" onchange="uploadMap(this)" style="display: none;">
-                <button onclick="document.getElementById('mapUpload').click()" style="background-color: #ff9800; width: 100%; margin-bottom: 15px;">1. Välj kartbild (Krävs)</button>
+                <button onclick="document.getElementById('mapUpload').click()" style="background-color: #ff9800; color: #000000; width: 100%; margin-bottom: 15px;">1. Välj kartbild (Krävs)</button>
                 <label style="font-weight: bold; font-size: 14px;">2. Kalibrera skala / Måttstock:</label>
                 <p style="font-size: 12px; color: #666; margin: 0 0 5px 0;">Klicka "Kalibrera" och dra ett streck på kartan över en känd sträcka (t.ex. längs en väg eller byggnad).</p>
-                <button onclick="startCalibration()" id="btn-calibrate" style="background-color: #0288d1; width: 100%; margin-bottom: 15px;">📐 Kalibrera karta</button>
+                <button onclick="startCalibration()" id="btn-calibrate" style="background-color: #0288d1; color: #000000; width: 100%; margin-bottom: 15px;">📐 Kalibrera karta</button>
                 <input type="hidden" id="map-width" value="100">
                 <label style="font-weight: bold; font-size: 14px;">MSB Säkerhetsavstånd (meter):</label>
+                <label for="map-safety" style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Detta är det minsta avståndet som ska hållas mellan tälten enligt MSB:s riktlinjer.</label>
                 <input type="number" id="map-safety" value="4" style="width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box;" onchange="updateMapSettings()">
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
                 <h3 style="color: var(--scout-dark);">⛺ Tält att placera</h3>
@@ -99,7 +120,7 @@
             <div style="flex: 3; min-width: 300px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
                 <h3 style="margin-top: 0; color: var(--scout-dark);">Lägerkarta</h3>
                 <p style="font-size: 14px; margin-bottom: 15px;">
-                    Cirkeln runt tältet är säkerhetszonen. <strong style="color: red;">Röd färg = Kollision (Tälten står för nära)!</strong>
+                    Cirkeln runt tältet är säkerhetszonen. <strong style="color: #9E0000;">Röd färg = Kollision (tälten står för nära)!</strong>
                 </p>
                 <div style="position: relative; width: 100%; border: 2px solid #cfd8dc; border-radius: 4px; background-color: #eceff1;">
                     <canvas id="camp-map" width="800" height="600" style="width: 100%; height: auto; display: block; cursor: grab; touch-action: none;"></canvas>

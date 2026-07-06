@@ -132,6 +132,7 @@ app.post('/api/auto-assign', (req, res) => {
             if (db.participants.scouts.sparare.includes(name)) return 'sparare';
             if (db.participants.scouts.upptackare.includes(name)) return 'upptackare';
             if (db.participants.scouts.aventyrare.includes(name)) return 'aventyrare';
+            if (db.participants.scouts.ledarbarn.includes(name)) return 'ledarbarn';
             return null;
         }
 
@@ -140,16 +141,16 @@ app.post('/api/auto-assign', (req, res) => {
         db.assignments.forEach(tent => tent.occupants.forEach(p => placed.add(p)));
 
         // 2. Samla alla som är OPLACERADE, uppdelat per grupp
-        let unassigned = { leaders: [], sparare: [], upptackare: [], aventyrare: [] };
+        let unassigned = { leaders: [], sparare: [], upptackare: [], aventyrare: [], ledarbarn: [] };
         
         db.participants.leaders.forEach(p => { if (!placed.has(p)) unassigned.leaders.push(p); });
-        ['sparare', 'upptackare', 'aventyrare'].forEach(group => {
+        ['sparare', 'upptackare', 'aventyrare', 'ledarbarn'].forEach(group => {
             if (db.participants.scouts[group]) {
                 db.participants.scouts[group].forEach(p => { if (!placed.has(p)) unassigned[group].push(p); });
             }
         });
 
-        const groupsToAssign = ['leaders', 'sparare', 'upptackare', 'aventyrare'];
+        const groupsToAssign = ['leaders', 'sparare', 'upptackare', 'aventyrare', 'ledarbarn'];
 
         // 3. Fördela grupperna en och en
         groupsToAssign.forEach(group => {
@@ -257,7 +258,8 @@ app.get('/api/status', (req, res) => {
     const numScouts = 
         db.participants.scouts.sparare.length + 
         db.participants.scouts.upptackare.length + 
-        db.participants.scouts.aventyrare.length;
+        db.participants.scouts.aventyrare.length +
+        db.participants.scouts.ledarbarn.length;
     const totalPeople = numLeaders + numScouts;
 
     // Räkna tältkapacitet
