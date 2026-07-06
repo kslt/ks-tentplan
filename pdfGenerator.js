@@ -1,11 +1,9 @@
-// Copyright (c) 2026 Kasper Sjöström. All rights reserved. www.kswebb.se
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-function generatePDF(db, outputPath, callback) {
-    // Sätter en generös bottenmarginal (120) så att den högre sidfoten får plats 
-    // utan att krocka med tältlistan. bufferPages gör att vi kan bygga sidfötterna sist.
+function generatePDF(db, version, outputPath, callback) {
+    // Sätter en generös bottenmarginal (120) så att den högre sidfoten får plats
     const doc = new PDFDocument({ 
         bufferPages: true, 
         margins: { top: 50, bottom: 120, left: 50, right: 50 } 
@@ -14,10 +12,8 @@ function generatePDF(db, outputPath, callback) {
     const stream = fs.createWriteStream(outputPath);
     doc.pipe(stream);
 
-    // Sökväg till din logga (.png-format krävs för PDFKit)
     const logoPath = path.join(__dirname, 'public', 'style', 'img', 'logo-nodejs-transp-271x72.png');
 
-    // Hjälpfunktion för att hämta gruppnamn till PDF:en
     function getGroupName(name) {
         if (db.participants.leaders.includes(name)) return 'Ledare';
         if (db.participants.scouts.sparare.includes(name)) return 'Spårare';
@@ -43,17 +39,14 @@ function generatePDF(db, outputPath, callback) {
     db.inventory.forEach(tent => {
         const needed = packedTents[tent.id] || 0;
         const isEgetBoende = tent.name.toLowerCase() === 'eget boende';
-
-        if (isEgetBoende) {
-            return; 
-        }
-
-        doc.text(`- ${tent.name}: ${needed} st (Ni äger ${tent.quantityOwned} st)`);
         
-        // Varna om ni har planerat in fler tält än ni äger
+        if (isEgetBoende || needed === 0) return; 
+
+        doc.text(`- ${tent.name}: ${needed} st`);
+        
         if (needed > tent.quantityOwned) {
             doc.fillColor('red')
-               .text(`  VARNING: Ni har planerat in fler ${tent.name} än ni äger! Saknas: ${needed - tent.quantityOwned} st`)
+               .text(`  VARNING: Ni har planerat in fler ${tent.name} än ni äger, det saknas: ${needed - tent.quantityOwned} st!`)
                .fillColor('black');
         }
     });
@@ -68,7 +61,6 @@ function generatePDF(db, outputPath, callback) {
         const tentName = tentInfo ? tentInfo.name : 'Okänt tält';
         const isEgetBoende = tentName.toLowerCase() === 'eget boende';
 
-        // Anpassa rubriken i PDF:en utifrån customName eller Eget boende
         let titleString = '';
         if (isEgetBoende) {
             titleString = `${tentName}`;
@@ -86,7 +78,6 @@ function generatePDF(db, outputPath, callback) {
             doc.text(`  • ${person} (${group})`);
         });
         
-        // Varna om det är trångt, men stäng av varningen helt om det är Eget boende
         if (tentInfo && !isEgetBoende && assignment.occupants.length > tentInfo.capacity) {
             doc.fillColor('red')
                .text(`  VARNING: Trångt! Tältet tar bara ${tentInfo.capacity} personer.`)
@@ -95,43 +86,202 @@ function generatePDF(db, outputPath, callback) {
         doc.moveDown();
     });
 
-    // --- MAGISK OCH INTERAKTIV SIDFOT ---
+    // --- 3. ÖVERSIKTSKARTA (UPPDATERAD V2.0 FORMER & ROTATIONER) ---
+    if (db.mapConfig && db.mapConfig.hasMap && db.mapConfig.imagePath) {
+        doc.addPage();
+        
+        doc.fontSize(16).fillColor('black').text('3. Layoutskiss - Lägerområde');
+        doc.fontSize(11).moveDown(0.5);
+        doc.text('Gula/Röda zoner visar MSB säkerhetsavstånd. Röd zon indikerar att tält står för nära varandra.');
+        doc.moveDown(1);
+
+        // Bestäm bredd på kartan i PDF:en (A4 bredd minus marginaler = 495 punkter)
+        const pdfMapWidth = 495;
+        let pdfMapHeight = 371; // Standard-fallback (4:3)
+        
+        const mapStartX = doc.x;
+        const mapStartY = doc.y;
+
+        const absoluteImagePath = path.join(__dirname, 'public', db.mapConfig.imagePath);
+        
+        // Rita bakgrundskartan och räkna ut dynamisk höjd baserat på bildens proportioner
+        if (fs.existsSync(absoluteImagePath)) {
+            try {
+                const img = doc.openImage(absoluteImagePath);
+                const aspectRatio = img.height / img.width;
+                pdfMapHeight = pdfMapWidth * aspectRatio; // Perfekt proportioner!
+                doc.image(img, mapStartX, mapStartY, { width: pdfMapWidth, height: pdfMapHeight });
+            } catch (e) {
+                // Om något skiter sig med bildanalysen, kör standard-skalning
+                doc.image(absoluteImagePath, mapStartX, mapStartY, { width: pdfMapWidth, height: pdfMapHeight });
+            }
+        }
+
+        // Rita en snygg ram runt kartan
+        doc.rect(mapStartX, mapStartY, pdfMapWidth, pdfMapHeight)
+           .strokeColor('#cfd8dc')
+           .lineWidth(2)
+           .stroke();
+
+        const mapMetersWidth = parseFloat(db.mapConfig.scaleLineMeters) || 100;
+        const pixelsPerMeter = pdfMapWidth / mapMetersWidth;
+        const safetyMargin = parseFloat(db.mapConfig.safetyMarginMeters) || 4;
+
+        const placedTents = db.assignments.filter(t => t.isPlaced);
+
+        placedTents.forEach((tent, i) => {
+            const inv = db.inventory.find(item => item.id === tent.tentType);
+            
+            const shape = inv ? (inv.shape || 'circle') : 'circle';
+            let widthM = inv ? (inv.width || 4.0) : 4.0;
+            let lengthM = inv ? (inv.length || 4.0) : 4.0;
+            
+            // Hantera rotation i PDF:en
+            if (tent.isRotated) {
+                const temp = widthM;
+                widthM = lengthM;
+                lengthM = temp;
+            }
+            
+            const wPx = widthM * pixelsPerMeter;
+            const lPx = lengthM * pixelsPerMeter;
+            
+            const haloWPx = (widthM + safetyMargin) * pixelsPerMeter;
+            const haloLPx = (lengthM + safetyMargin) * pixelsPerMeter;
+
+            // Omvandla procentkoordinater till PDF-punkter på ängen
+            const pxX = mapStartX + ((tent.x / 100) * pdfMapWidth);
+            const pxY = mapStartY + ((tent.y / 100) * pdfMapHeight);
+
+            // Avancerad Kollisionslogik (AABB-boxar) för PDF:en så färgerna matchar skärmen exakt
+            let isColliding = false;
+            for (let j = 0; j < placedTents.length; j++) {
+                if (i === j) continue;
+                const other = placedTents[j];
+                const otherInv = db.inventory.find(item => item.id === other.tentType);
+                
+                const oShape = otherInv ? (otherInv.shape || 'circle') : 'circle';
+                let oWidthM = otherInv ? (otherInv.width || 4.0) : 4.0;
+                let oLengthM = otherInv ? (otherInv.length || 4.0) : 4.0;
+                
+                if (other.isRotated) {
+                    const temp = oWidthM;
+                    oWidthM = oLengthM;
+                    oLengthM = temp;
+                }
+                
+                const oHaloWPx = (oWidthM + safetyMargin) * pixelsPerMeter;
+                const oHaloLPx = (oLengthM + safetyMargin) * pixelsPerMeter;
+                
+                const oPx = mapStartX + ((other.x / 100) * pdfMapWidth);
+                const oPy = mapStartY + ((other.y / 100) * pdfMapHeight);
+
+                if (pxX - haloWPx/2 < oPx + oHaloWPx/2 &&
+                    pxX + haloWPx/2 > oPx - oHaloWPx/2 &&
+                    pxY - haloLPx/2 < oPy + oHaloLPx/2 &&
+                    pxY + haloLPx/2 > oPy - oHaloLPx/2) {
+                    
+                    if (shape === 'circle' && oShape === 'circle') {
+                        const dist = Math.sqrt(Math.pow(pxX - oPx, 2) + Math.pow(pxY - oPy, 2));
+                        if (dist < (haloWPx/2 + oHaloWPx/2)) {
+                            isColliding = true;
+                            break;
+                        }
+                    } else {
+                        isColliding = true; 
+                        break;
+                    }
+                }
+            }
+
+            // 1. RITA SÄKERHETSZONEN (Glorian)
+            doc.save(); // Sparar grafik-tillstånd för opacitet
+            doc.opacity(0.4);
+            
+            if (shape === 'rectangle') {
+                doc.rect(pxX - haloWPx/2, pxY - haloLPx/2, haloWPx, haloLPx);
+            } else {
+                doc.circle(pxX, pxY, haloWPx/2);
+            }
+            
+            doc.fillColor(isColliding ? '#e57373' : '#fff176') // Softare röd/gul för PDF-print
+               .strokeColor(isColliding ? '#d32f2f' : '#fbc02d')
+               .lineWidth(1)
+               .fillAndStroke();
+            doc.restore(); // Återställer opaciteten till 1.0 direkt
+
+            // 2. RITA SJÄLVA TÄLTET
+            if (shape === 'rectangle') {
+                doc.rect(pxX - wPx/2, pxY - lPx/2, wPx, lPx);
+            } else {
+                doc.circle(pxX, pxY, wPx/2);
+            }
+            
+            doc.fillColor('#388e3c')
+               .strokeColor('#ffffff')
+               .lineWidth(1.5)
+               .fillAndStroke();
+
+            // 3. RITA TÄLTNUMRET mitt i tältet
+            doc.fillColor('#ffffff')
+               .fontSize(10)
+               .text(tent.tentNumber.toString(), pxX - 10, pxY - 5, { width: 20, align: 'center' });
+        });
+
+        // Återställ textinställningar efter kartritandet
+        doc.fillColor('black').fontSize(12);
+    }
+
+    // --- INTERAKTIV SIDFOT ---
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i);
         
-        // Stäng tillfälligt av bottenmarginalen under renderingen av sidfoten
-        // för att förhindra att PDFKit av misstag skapar en extra tom sida.
         const oldBottomMargin = doc.page.margins.bottom;
         doc.page.margins.bottom = 0;
         
-        // Y-koordinat för var sidfotens linje ska dras (105px från botten)
         const footerStartY = doc.page.height - 105;
 
+        // Linje ovanför sidfoten
         doc.moveTo(50, footerStartY)
            .lineTo(doc.page.width - 50, footerStartY)
            .strokeColor('#cfd8dc')
            .lineWidth(1)
            .stroke();
 
+        // Rad 1: Kårens text
         doc.fontSize(9)
            .fillColor('#546e7a')
-           .text('Tältplaneringsverktyget TentPlan | Alltid redo!', 50, footerStartY + 15, { 
+           .text('TentPlan - Det smarta tältplaneringsverktyget | Alltid redo!', 50, footerStartY + 15, { 
+               align: 'center', 
+               width: doc.page.width - 100 
+           });
+           
+        // Rad 2: Partner-text
+        doc.text('Utvecklat av och i samarbete med KS Webb (www.kswebb.se)', 50, footerStartY + 27, { 
                align: 'center', 
                width: doc.page.width - 100 
            });
 
-        doc.text('Utvecklat av och i samarbete med Kasper på KS Webb (www.kswebb.se)', 50, footerStartY + 27, { 
-               align: 'center', 
-               width: doc.page.width - 100 
-           });
-
+        // Centrerad logga under texten
         if (fs.existsSync(logoPath)) {
             const logoWidth = 75;
             const logoX = (doc.page.width - logoWidth) / 2;
             doc.image(logoPath, logoX, footerStartY + 45, { width: logoWidth });
         }
 
+        // Rad 4: Versionsnummer
+        doc.text(`Systemversion ${version}`, 50, footerStartY + 75, { 
+            align: 'center', 
+            width: doc.page.width - 100 
+        });
+
+        doc.text(`Copyright © 2026 Kasper Sjöström. All rights reserved.`, 50, footerStartY + 87, { 
+            align: 'center', 
+            width: doc.page.width - 100 
+        });
+
+        // Sidnummer
         doc.text(`Sida ${i + 1} av ${range.count}`, doc.page.width - 150, doc.page.height - 40, { 
             width: 100, 
             align: 'right', 

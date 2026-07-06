@@ -1,11 +1,13 @@
 // Copyright (c) 2026 Kasper Sjöström. All rights reserved. www.kswebb.se
 const express = require('express');
+const VERSION = '2.1.3';
 const fs = require('fs');
 const path = require('path');
 const generatePDF = require('./pdfGenerator');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(express.static('public'));
 
@@ -274,7 +276,8 @@ app.get('/api/status', (req, res) => {
         missingSpots,
         message: isEnough 
             ? "Tälten räcker till alla!" 
-            : `Varning! Ni saknar sovplatser för ${missingSpots} personer.`
+            : `Varning! Ni saknar sovplatser för ${missingSpots} personer.`,
+        version: VERSION // <-- NYTT
     });
 });
 
@@ -288,13 +291,135 @@ app.get('/api/report', (req, res) => {
             fs.mkdirSync(outputDir, { recursive: true });
         }
         
-        generatePDF(db, outputPath, () => {
+        generatePDF(db, VERSION, outputPath, () => {
             res.download(outputPath);
         });
         
     } catch (error) {
         console.error("[ERROR] Kunde inte generera PDF-rapporten:", error);
         res.status(500).json({ success: false, error: "Kunde inte skapa rapporten." });
+    }
+});
+
+//        KARTFUNKTIONER (V2.0 BACKEND)
+
+// 1. HÄMTA KARTKONFIGURATION OCH STATUS
+app.get('/api/map/config', (req, res) => {
+    try {
+        const db = getDb();
+        // Om mapConfig saknas helt i en gammal data.json, skapa en standard
+        if (!db.mapConfig) {
+            db.mapConfig = { hasMap: false, imagePath: null, scaleLineMeters: 10, scaleLinePixels: 100, safetyMarginMeters: 4 };
+        }
+        res.json(db.mapConfig);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. LADDA UPP KARTBILD OCH SPARA INSTÄLLNINGAR
+app.post('/api/map/upload', (req, res) => {
+    try {
+        const db = getDb();
+        const { imageBase64, safetyMarginMeters, scaleLineMeters } = req.body;
+
+        if (!db.mapConfig) db.mapConfig = {};
+
+        // Om användaren skickar med en ny bild
+        if (imageBase64) {
+            // Skapa en 'uploads'-mapp inuti public om den inte finns
+            const uploadDir = path.join(__dirname, 'public', 'uploads');
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            // Tvätta bort base64-headern (t.ex. "data:image/png;base64,") så bara ren fildata återstår
+            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            const filename = `layouthandling_${Date.now()}.png`; // Unikt filnamn för att undvika cache-problem
+            const filePath = path.join(uploadDir, filename);
+
+            // Spara bilden på serverns hårddisk
+            fs.writeFileSync(filePath, base64Data, 'base64');
+            
+            db.mapConfig.hasMap = true;
+            db.mapConfig.imagePath = `/uploads/${filename}`;
+        }
+
+        // Uppdatera inställningarna
+        if (safetyMarginMeters !== undefined) db.mapConfig.safetyMarginMeters = parseFloat(safetyMarginMeters);
+        if (scaleLineMeters !== undefined) db.mapConfig.scaleLineMeters = parseFloat(scaleLineMeters);
+
+        // Spara till data.json
+        fs.writeFileSync(path.join(__dirname, 'data.json'), JSON.stringify(db, null, 2), 'utf8');
+        res.json({ success: true, mapConfig: db.mapConfig });
+
+    } catch (error) {
+        console.error("[ERROR] Kunde inte ladda upp kartan:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 3. SPARA ETT TÄLTS POSITION PÅ KARTAN
+app.put('/api/tents/position/:number', (req, res) => {
+    try {
+        const db = getDb();
+        const tentNumber = parseInt(req.params.number);
+        const { x, y, isPlaced, isRotated, scaleLinePixels } = req.body;
+
+        const tent = db.assignments.find(t => t.tentNumber === tentNumber);
+        if (tent) {
+            tent.x = x !== null ? parseFloat(x) : null;
+            tent.y = y !== null ? parseFloat(y) : null;
+            tent.isPlaced = !!isPlaced;
+            tent.isRotated = !!isRotated; // NY: Spara om tältet är vridet 90 grader
+
+            if (scaleLinePixels !== undefined && db.mapConfig) {
+                db.mapConfig.scaleLinePixels = parseInt(scaleLinePixels);
+            }
+
+            fs.writeFileSync(path.join(__dirname, 'data.json'), JSON.stringify(db, null, 2), 'utf8');
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ success: false, error: "Tältet hittades inte" });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 4. UPPDATERA ETT TÄLTS FYSISKA DIMENSIONER I LAGRET
+app.put('/api/inventory/dimensions/:id', (req, res) => {
+    try {
+        const db = getDb();
+        const tentId = req.params.id;
+        const { shape, width, length } = req.body;
+
+        const tent = db.inventory.find(t => t.id === tentId);
+        if (tent) {
+            tent.shape = shape || 'circle'; // 'circle' eller 'rectangle'
+            tent.width = parseFloat(width) || 4.0; // standard 4 meter bred/diameter
+            tent.length = parseFloat(length) || 4.0;
+
+            fs.writeFileSync(path.join(__dirname, 'data.json'), JSON.stringify(db, null, 2), 'utf8');
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ success: false, error: "Tälttypen hittades inte i lagret" });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// SPARA HELA DATABASEN (För drag-and-drop i listan)
+app.post('/api/save', (req, res) => {
+    try {
+        const dbPath = path.join(__dirname, 'data.json');
+        // Sparar den uppdaterade datan över den gamla filen
+        fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
+        res.json({ success: true });
+    } catch (error) {
+        console.error("[ERROR] Kunde inte spara efter drag-and-drop:", error);
+        res.status(500).json({ success: false, error: "Kunde inte spara data." });
     }
 });
 

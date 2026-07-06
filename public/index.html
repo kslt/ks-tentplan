@@ -10,65 +10,109 @@
     <div class="main-header">
         <h1>🏕️ Tältplaneringsverktyget TentPlan - för Scoutlägret</h1>
     </div>
-    <div class="dashboard-header">
-        <div id="status-container" class="status-box">Laddar status...</div>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="autoAssign()" style="background-color: #fbc02d; color: #333; font-weight: bold;">✨ Auto-fördela</button>
-            <button onclick="clearAssignments()" style="background-color: #e53935; color: white; font-weight: bold;">🔄 Töm alla tält</button>
-            <button onclick="window.location.href='/api/report'">📄 PDF-rapport</button>
-        </div>
+    <div class="view-toggles">
+        <button onclick="switchView('list')" id="btn-list-view" class="view-btn active-view-btn">📋 Listvy</button>
+        <button onclick="switchView('map')" id="btn-map-view" class="view-btn">🗺️ Byplanering (BETA)</button>
     </div>
-    <div style="text-align: right; margin-bottom: 20px;">
-        <button onclick="toggleInventory()" style="background-color: #546e7a; padding: 8px 16px; font-size: 14px;">⚙️ Hantera Kårens Tältlager</button>
-    </div>
-    <div id="inventory-section" style="display: none; background: #eceff1; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #cfd8dc;">
-        <h2 style="margin-top: 0; color: #37474f;">⛺ Kårens Tältlager (Inventarie)</h2>
-        <p style="font-size: 14px; margin-top: -10px; color: #546e7a;">Här anger du vilka tälttyper kåren äger. Dessa används sedan för att bygga upp lägret.</p>
-        <div id="inventory-list" style="margin-bottom: 20px;">
+    <div id="list-view-container">
+        <div class="dashboard-header">
+            <div id="status-container" class="status-box">Laddar status...</div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="autoAssign()" style="background-color: #fbc02d; color: #333; font-weight: bold;">✨ Auto-fördela</button>
+                <button onclick="clearAssignments()" style="background-color: #e53935; color: white; font-weight: bold;">🔄 Töm alla tält</button>
+                <button onclick="window.location.href='/api/report'">📄 PDF-rapport</button>
             </div>
-        <h3 style="font-size: 16px; border-top: 1px solid #cfd8dc; padding-top: 15px; margin-bottom: 10px;">➕ Lägg till ny tälttyp</h3>
-        <div class="form-group" style="flex-wrap: wrap;">
-            <input type="text" id="inv-id" placeholder="Unikt ID (t.ex. t3)" style="width: 120px;">
-            <input type="text" id="inv-name" placeholder="Namn (t.ex. Militärtält 20)" style="flex: 1; min-width: 200px;">
-            <input type="number" id="inv-cap" placeholder="Kapacitet (pers)" style="width: 130px;">
-            <input type="number" id="inv-qty" placeholder="Antal kåren äger" style="width: 130px;">
-            <button onclick="addInventoryTent()" style="background-color: #546e7a;">Spara typ</button>
         </div>
-    </div>
-    <div class="control-panel">
-        <div class="tent-card card-form">
-            <h3>➕ Lägg till deltagare</h3>
-            <div class="form-group">
-                <input type="text" id="new-person-name" placeholder="För- och efternamn">
-                <select id="new-person-group">
-                    <option value="leaders">Ledare</option>
-                    <option value="sparare">Spårare</option>
-                    <option value="upptackare">Upptäckare</option>
-                    <option value="aventyrare">Äventyrare</option>
+        <div style="text-align: right; margin-bottom: 20px;">
+            <button onclick="toggleInventory()" style="background-color: #546e7a; padding: 8px 16px; font-size: 14px;">⚙️ Hantera tält-/bygglagret</button>
+        </div>
+        <div id="inventory-section" style="display: none; background: #eceff1; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #cfd8dc;">
+            <h2 style="margin-top: 0; color: #37474f;">⛺ Bygglager</h2>
+            <p style="font-size: 14px; margin-top: -10px; color: #546e7a;">Här anger du vilka olika byggnader ni äger. Dessa används sedan för att bygga upp lägret. Några av dem är sånt som måste finnas, kök, matplats etc.</p>
+            <div id="inventory-list" style="margin-bottom: 20px;">
+                </div>
+            <h3 style="font-size: 16px; border-top: 1px solid #cfd8dc; padding-top: 15px; margin-bottom: 10px;">➕ Lägg till ny byggnad</h3>
+            <div class="form-group" style="flex-wrap: wrap; gap: 8px;">
+                <input type="text" id="inv-id" placeholder="ID (t.ex. t3)" style="width: 80px;">
+                <input type="text" id="inv-name" placeholder="Namn" style="flex: 1; min-width: 120px;">
+                <input type="number" id="inv-cap" placeholder="Pers" style="width: 60px;">
+                <input type="number" id="inv-qty" placeholder="Antal" style="width: 60px;">
+                
+                <select id="inv-shape" style="padding: 10px; border: 1px solid #ccc; border-radius: 4px; width: 110px;">
+                    <option value="circle">Runt (Ø)</option>
+                    <option value="rectangle">Fyrkantigt</option>
                 </select>
-                <button onclick="addPerson()">Spara</button>
+                <input type="number" id="inv-width" placeholder="Bredd/Diam (m)" step="0.1" style="width: 120px;">
+                <input type="number" id="inv-length" placeholder="Längd (m)" step="0.1" style="width: 90px;" title="Lämna tom om tältet är runt">
+                
+                <button onclick="addInventoryTent()" style="background-color: #546e7a;">Spara typ</button>
             </div>
         </div>
-        <div class="tent-card card-form">
-            <h3>⛺ Slå upp ett nytt tält</h3>
-            <div class="form-group">
-                <select id="new-tent-type">
+        <div class="control-panel">
+            <div class="tent-card card-form">
+                <h3>➕ Lägg till deltagare</h3>
+                <div class="form-group">
+                    <input type="text" id="new-person-name" placeholder="För- och efternamn">
+                    <select id="new-person-group">
+                        <option value="leaders">Ledare</option>
+                        <option value="sparare">Spårare</option>
+                        <option value="upptackare">Upptäckare</option>
+                        <option value="aventyrare">Äventyrare</option>
                     </select>
-                <button onclick="addTent()">Slå upp</button>
+                    <button onclick="addPerson()">Spara</button>
+                </div>
+            </div>
+            <div class="tent-card card-form">
+                <h3>⛺ Slå upp ett nytt tält</h3>
+                <div class="form-group">
+                    <select id="new-tent-type">
+                        </select>
+                    <button onclick="addTent()">Slå upp</button>
+                </div>
             </div>
         </div>
-    </div>
-    <h2>Aktuell Tältindelning</h2>
-    <div id="tents-grid" class="tents-grid">
-    </div>
-    <h2>Oplacerade Deltagare</h2>
-    <div id="unassigned-pool" class="tents-grid" style="background: #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 30px; min-height: 50px;">
+        <h2>Aktuell tältindelning</h2>
+        <div id="tents-grid" class="tents-grid">
+        </div>
+        <h2>Oplacerade deltagare</h2>
+        <div id="unassigned-pool" class="tents-grid" style="background: #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 30px; min-height: 50px;">
+        </div>
+    </div> 
+    <div id="map-view-container" style="display: none; padding: 20px;">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+            <div style="flex: 1; min-width: 280px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="margin-top: 0; color: var(--scout-dark);">🗺️ Kartinställningar</h3>
+                <input type="file" id="mapUpload" accept="image/*" onchange="uploadMap(this)" style="display: none;">
+                <button onclick="document.getElementById('mapUpload').click()" style="background-color: #ff9800; width: 100%; margin-bottom: 15px;">1. Välj kartbild (Krävs)</button>
+                <label style="font-weight: bold; font-size: 14px;">2. Kalibrera skala / Måttstock:</label>
+                <p style="font-size: 12px; color: #666; margin: 0 0 5px 0;">Klicka "Kalibrera" och dra ett streck på kartan över en känd sträcka (t.ex. längs en väg eller byggnad).</p>
+                <button onclick="startCalibration()" id="btn-calibrate" style="background-color: #0288d1; width: 100%; margin-bottom: 15px;">📐 Kalibrera karta</button>
+                <input type="hidden" id="map-width" value="100">
+                <label style="font-weight: bold; font-size: 14px;">MSB Säkerhetsavstånd (meter):</label>
+                <input type="number" id="map-safety" value="4" style="width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box;" onchange="updateMapSettings()">
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <h3 style="color: var(--scout-dark);">⛺ Tält att placera</h3>
+                <p style="font-size: 12px; color: #666; margin-top: 0;">Klicka "In på karta", dra dem sedan på ritytan för att flytta dem.</p>
+                <div id="unplaced-tents" style="display: flex; flex-direction: column; gap: 10px;">
+                </div>
+            </div>
+            <div style="flex: 3; min-width: 300px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden;">
+                <h3 style="margin-top: 0; color: var(--scout-dark);">Lägerkarta</h3>
+                <p style="font-size: 14px; margin-bottom: 15px;">
+                    Cirkeln runt tältet är säkerhetszonen. <strong style="color: red;">Röd färg = Kollision (Tälten står för nära)!</strong>
+                </p>
+                <div style="position: relative; width: 100%; border: 2px solid #cfd8dc; border-radius: 4px; background-color: #eceff1;">
+                    <canvas id="camp-map" width="800" height="600" style="width: 100%; height: auto; display: block; cursor: grab; touch-action: none;"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
     <footer style="margin-top: 60px; text-align: center; font-size: 14px; color: #546e7a; border-top: 1px solid #cfd8dc; padding-top: 20px; padding-bottom: 20px;">
-        Björsäters scoutkårs tältplaneringsverktyg | Alltid redo!<br>
-        Utvecklat av och i samarbete med Kasper på KS Webb (<a href="https://www.kswebb.se" target="_blank">www.kswebb.se</a>)<br>
+        TentPlan - Det smarta tältplaneringsverktyget | Alltid redo!<br>
+        Utvecklat av och i samarbete med KS Webb (<a href="https://www.kswebb.se" target="_blank">www.kswebb.se</a>)<br>
         <img src="style/img/logo-nodejs-transp-271x72.svg" alt="KS Webb logga" style="max-height: 40px; margin-top: 10px;" onerror="this.style.display='none'"><br>
-        Copyright (c) 2026 Kasper Sjöström. All rights reserved.
+        Copyright © 2026 Kasper Sjöström. All rights reserved.<br>
+        <span id="app-version"></span>
     </footer>
     <script src="app.js"></script>
 </body>

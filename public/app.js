@@ -15,13 +15,16 @@ async function fetchData() {
         currentDb = await response.json();
         renderSystem();
         fetchStatus();
+
+        if (typeof updateMapUI === "function") {
+            updateMapUI();
+        }
     } catch (error) {
         console.error('Kunde inte hämta data:', error);
     }
 }
 
 function renderSystem() {
-    // Fyll dropdown-menyn för tält (bara om den är tom)
     const tentSelect = document.getElementById('new-tent-type');
     tentSelect.innerHTML = '';
     if (currentDb.inventory) {
@@ -35,7 +38,6 @@ function renderSystem() {
     tentsGrid.innerHTML = '';
     unassignedPool.innerHTML = '';
 
-    // 1. Samla alla deltagare i en enda lista för att se vilka som finns
     const allParticipants = [
         ...currentDb.participants.leaders,
         ...currentDb.participants.scouts.sparare,
@@ -45,23 +47,20 @@ function renderSystem() {
 
     let placedParticipants = [];
 
-    // 2. Rendera Tälten
     currentDb.assignments.forEach((assignment, index) => {
         const tentInfo = currentDb.inventory.find(t => t.id === assignment.tentType);
         const tentName = tentInfo ? tentInfo.name : 'Okänt tält';
         
         const card = document.createElement('div');
         card.className = 'tent-card';
-        // Gör tältet till en drop-zone
         card.ondragover = (e) => e.preventDefault();
-        card.ondrop = (e) => handleDrop(e, index);
+        card.setAttribute('ondrop', `handleDrop(event, ${assignment.tentNumber})`);
 
         let occupantsHtml = '';
         assignment.occupants.forEach(person => {
             placedParticipants.push(person);
             const isLeader = currentDb.participants.leaders.includes(person);
             
-            // Gör varje person dragbar
             occupantsHtml += `
                 <span class="person-tag ${isLeader ? 'leader' : ''}" 
                       draggable="true" 
@@ -73,18 +72,31 @@ function renderSystem() {
                 </span>`;
         });
 
-        // Kolla om det är ett vanligt tält eller "Eget boende"
         const isEgetBoende = tentName.toLowerCase() === 'eget boende';
-        
-        // Välj rubrik: Om tältet har ett eget namn används det, annars "Tält X"
         let cardTitle = isEgetBoende ? `Eget boende` : `Tält ${assignment.tentNumber}`;
         if (assignment.customName && !isEgetBoende) {
             cardTitle = assignment.customName;
         }
 
+        // --- RÄKNARE OCH VARNING ---
+        const capacity = tentInfo ? tentInfo.capacity : 0;
+        const currentCount = assignment.occupants.length;
+        const isOverfull = !isEgetBoende && (currentCount > capacity);
+
+        let countText = isEgetBoende 
+            ? `Beläggning: ${currentCount} pers` 
+            : `Beläggning: ${currentCount} / ${capacity} pers`;
+
+        // Färglägg och varna om det är överfullt
+        if (isOverfull) {
+            countText = `<span style="color: #d32f2f; font-weight: bold;">⚠️ ${countText} (Överfullt!)</span>`;
+        } else {
+            countText = `<span style="color: #388e3c; font-weight: bold;">${countText}</span>`;
+        }
+
         const cardSubtitle = isEgetBoende 
-            ? `` 
-            : `(${tentName} - Max ${tentInfo ? tentInfo.capacity : '?'})`;
+            ? `${countText}` 
+            : `(${tentName}) &nbsp;|&nbsp; ${countText}`;
 
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
@@ -104,12 +116,10 @@ function renderSystem() {
         tentsGrid.appendChild(card);
     });
 
-    // 3. Rendera Oplacerade
     const unassigned = allParticipants.filter(p => !placedParticipants.includes(p));
     
-    // Gör "Oplacerade"-rutan till en drop-zone (-1 betyder att de lämnar ett tält)
     unassignedPool.ondragover = (e) => e.preventDefault();
-    unassignedPool.ondrop = (e) => handleDrop(e, -1);
+    unassignedPool.setAttribute('ondrop', `handleDrop(event, 'pool')`);
 
     unassigned.forEach(person => {
         const personClass = getPersonClass(person);
@@ -126,41 +136,43 @@ function renderSystem() {
 }
 
 function handleDragStart(e, person, fromTentIndex) {
-    // Spara vem vi drar och varifrån
-    e.dataTransfer.setData('person', person);
+    // FIX: Etiketten måste vara 'text/plain' för att matcha handleDrop
+    e.dataTransfer.setData('text/plain', person);
     e.dataTransfer.setData('fromTentIndex', fromTentIndex);
 }
 
-async function handleDrop(e, toTentIndex) {
+async function handleDrop(e, targetTentNumber) {
     e.preventDefault();
-    const person = e.dataTransfer.getData('person');
-    const fromTentIndex = parseInt(e.dataTransfer.getData('fromTentIndex'));
+    const personName = e.dataTransfer.getData('text/plain');
+    
+    if (!personName) return; // Stoppa om vi råkade dra fel sak
 
-    // Om vi släpper på samma ställe som vi startade, gör ingenting
-    if (fromTentIndex === toTentIndex) return;
-
-    // 1. Ta bort personen från det gamla tältet
-    if (fromTentIndex !== -1) {
-        currentDb.assignments[fromTentIndex].occupants = currentDb.assignments[fromTentIndex].occupants.filter(p => p !== person);
+    const targetAssignment = currentDb.assignments.find(a => a.tentNumber === parseInt(targetTentNumber));
+    
+    if (targetTentNumber === 'pool') {
+        currentDb.assignments.forEach(a => {
+            const idx = a.occupants.indexOf(personName);
+            if (idx !== -1) a.occupants.splice(idx, 1);
+        });
+    } else if (targetAssignment) {
+        if (!targetAssignment.occupants.includes(personName)) {
+            currentDb.assignments.forEach(a => {
+                const idx = a.occupants.indexOf(personName);
+                if (idx !== -1) a.occupants.splice(idx, 1);
+            });
+            targetAssignment.occupants.push(personName);
+        }
     }
 
-    // 2. Lägg till personen i det nya tältet
-    if (toTentIndex !== -1) {
-        currentDb.assignments[toTentIndex].occupants.push(person);
-    }
-
-    // 3. Rita om skärmen direkt så det känns snabbt för användaren
-    renderSystem();
-
-    // 4. Spara till servern
     try {
-        await fetch('/api/assignments', {
+        await fetch('/api/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(currentDb.assignments)
+            body: JSON.stringify(currentDb)
         });
+        fetchData();
     } catch (error) {
-        console.error("Kunde inte spara ändringen!", error);
+        console.error("Kunde inte spara efter drag-and-drop:", error);
     }
 }
 
@@ -168,6 +180,10 @@ async function fetchStatus() {
     try {
         const response = await fetch('/api/status');
         const status = await response.json();
+
+        if (status.version && document.getElementById('app-version')) {
+            document.getElementById('app-version').innerText = 'Systemversion ' + status.version;
+        }
         
         const statusContainer = document.getElementById('status-container');
         statusContainer.className = 'status-box ' + (status.isEnough ? 'status-success' : 'status-warning');
@@ -199,8 +215,6 @@ async function addPerson() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, group })
         });
-        
-        // Rensa fältet och ladda om sidan
         nameInput.value = '';
         fetchData();
     } catch (error) {
@@ -209,10 +223,7 @@ async function addPerson() {
 }
 
 async function deletePerson(name) {
-    // Fråga först så att man inte klickar fel av misstag
-    if (!confirm(`Är du helt säker på att du vill ta bort ${name} från lägret?`)) {
-        return;
-    }
+    if (!confirm(`Är du helt säker på att du vill ta bort ${name} från lägret?`)) return;
 
     try {
         await fetch('/api/participants', {
@@ -220,18 +231,14 @@ async function deletePerson(name) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
-        
-        // Uppdatera gränssnittet när borttagningen är klar
         fetchData();
     } catch (error) {
         console.error("Kunde inte ta bort personen:", error);
-        alert("Ett fel uppstod när personen skulle tas bort.");
     }
 }
 
 async function addTent() {
     const tentType = document.getElementById('new-tent-type').value;
-
     if (!tentType) return;
 
     try {
@@ -240,7 +247,6 @@ async function addTent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tentType })
         });
-        
         fetchData();
     } catch (error) {
         console.error("Kunde inte lägga till tält:", error);
@@ -248,13 +254,11 @@ async function addTent() {
 }
 
 async function renameTent(tentNumber) {
-    // Hitta tältets nuvarande namn om det har ett
     const tent = currentDb.assignments.find(t => t.tentNumber === tentNumber);
     const currentName = tent.customName || '';
 
     const newName = prompt("Vad vill du döpa tältet till? (t.ex. 'Äventyrare' eller 'Mattältet').\nLämna tomt och spara om du vill återställa till 'Tält " + tentNumber + "'.", currentName);
     
-    // Om användaren klickade avbryt är newName null, då gör vi inget.
     if (newName !== null) {
         try {
             const response = await fetch(`/api/tents/${tentNumber}`, {
@@ -263,12 +267,7 @@ async function renameTent(tentNumber) {
                 body: JSON.stringify({ customName: newName.trim() })
             });
             const result = await response.json();
-            
-            if (result.success) {
-                fetchData(); // Ladda om listan!
-            } else {
-                alert("Kunde inte byta namn.");
-            }
+            if (result.success) fetchData();
         } catch (error) {
             console.error("Fel vid namnbyte:", error);
         }
@@ -276,10 +275,7 @@ async function renameTent(tentNumber) {
 }
 
 async function deleteTent(tentNumber) {
-    // Varna användaren eftersom scouter kommer att flyttas
-    if (!confirm(`Är du helt säker på att du vill ta bort Tält ${tentNumber}? Alla deltagare i tältet kommer att bli oplacerade.`)) {
-        return;
-    }
+    if (!confirm(`Är du helt säker på att du vill ta bort Tält ${tentNumber}? Alla deltagare i tältet kommer att bli oplacerade.`)) return;
 
     try {
         await fetch('/api/tents', {
@@ -287,12 +283,9 @@ async function deleteTent(tentNumber) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tentNumber })
         });
-        
-        // Ladda om all data och rita om skärmen
         fetchData();
     } catch (error) {
         console.error("Kunde inte ta bort tältet:", error);
-        alert("Ett fel uppstod när tältet skulle tas bort.");
     }
 }
 
@@ -311,11 +304,15 @@ function renderInventory() {
     list.innerHTML = '';
 
     currentDb.inventory.forEach((tent, index) => {
+        const w = tent.width || 4;
+        const l = tent.length || w;
+        const shapeText = tent.shape === 'rectangle' ? `Fyrkantigt (${w}x${l}m)` : `Runt (Ø ${w}m)`;
+
         list.innerHTML += `
             <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #ddd;">
                 <div>
                     <strong>${tent.name}</strong> <span style="color: #666; font-size: 14px;">(ID: ${tent.id})</span><br>
-                    <span style="font-size: 14px;">Kapacitet: ${tent.capacity} pers | Kåren äger: ${tent.quantityOwned} st</span>
+                    <span style="font-size: 14px;">Kapacitet: ${tent.capacity} pers | Kåren äger: ${tent.quantityOwned} st<br>Form: <b>${shapeText}</b></span>
                 </div>
                 <div>
                     <button onclick="editInventoryTent(${index})" style="background: #fb8c00; padding: 6px 12px; font-size: 12px; margin-right: 5px;">✏️ Ändra</button>
@@ -333,8 +330,8 @@ async function saveInventory() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(currentDb.inventory)
         });
-        fetchData(); // Ladda om all data
-        setTimeout(renderInventory, 100); // Uppdatera rutan efter datan laddats om
+        fetchData(); 
+        setTimeout(renderInventory, 100); 
     } catch (error) {
         console.error("Kunde inte spara tältlagret:", error);
     }
@@ -345,19 +342,29 @@ function addInventoryTent() {
     const name = document.getElementById('inv-name').value.trim();
     const capacity = parseInt(document.getElementById('inv-cap').value);
     const qty = parseInt(document.getElementById('inv-qty').value);
+    
+    const shape = document.getElementById('inv-shape').value;
+    const width = parseFloat(document.getElementById('inv-width').value.replace(',', '.'));
+    let length = parseFloat(document.getElementById('inv-length').value.replace(',', '.'));
 
-    if (!id || !name || isNaN(capacity) || isNaN(qty)) {
-        alert("Fyll i alla fält korrekt!");
+    if (!id || !name || isNaN(capacity) || isNaN(qty) || isNaN(width)) {
+        alert("Fyll i alla fält korrekt! (Bredd/Diameter måste anges)");
         return;
     }
 
-    // Kolla så ID:t inte redan finns
+    if (shape === 'rectangle' && isNaN(length)) {
+        alert("För ett fyrkantigt tält måste du ange både bredd och längd.");
+        return;
+    }
+
+    if (shape === 'circle') length = width; // Normalisera så databasen är städad
+
     if (currentDb.inventory.find(t => t.id === id)) {
-        alert("En tälttyp med det ID:t finns redan. Välj ett annat ID.");
+        alert("En tälttyp med det ID:t finns redan.");
         return;
     }
 
-    currentDb.inventory.push({ id, name, capacity, quantityOwned: qty });
+    currentDb.inventory.push({ id, name, capacity, quantityOwned: qty, shape, width, length });
     saveInventory();
 
     // Rensa fälten
@@ -365,12 +372,13 @@ function addInventoryTent() {
     document.getElementById('inv-name').value = '';
     document.getElementById('inv-cap').value = '';
     document.getElementById('inv-qty').value = '';
+    document.getElementById('inv-width').value = '';
+    document.getElementById('inv-length').value = '';
 }
 
 function deleteInventoryTent(index) {
     const tent = currentDb.inventory[index];
     
-    // Säkerhetskontroll: Kolla om det redan finns uppslagna tält av denna typ på lägret
     const isInUse = currentDb.assignments.some(a => a.tentType === tent.id);
     if (isInUse) {
         alert(`Du kan inte ta bort ${tent.name} eftersom det finns uppslagna tält av den typen på lägret. Ta bort tälten från lägret först!`);
@@ -386,9 +394,8 @@ function deleteInventoryTent(index) {
 function editInventoryTent(index) {
     const tent = currentDb.inventory[index];
     
-    // Vi använder enkla prompts för snabb redigering
-    const newName = prompt(`Ändra namn på tältet (nuvarande: ${tent.name}):`, tent.name);
-    if (newName === null) return; // Användaren avbröt
+    const newName = prompt(`Ändra namn (nuvarande: ${tent.name}):`, tent.name);
+    if (newName === null) return;
     
     const newCap = prompt(`Ändra kapacitet för ${newName}:`, tent.capacity);
     if (newCap === null) return;
@@ -396,53 +403,501 @@ function editInventoryTent(index) {
     const newQty = prompt(`Hur många ${newName} äger kåren?`, tent.quantityOwned);
     if (newQty === null) return;
 
-    // Spara de nya värdena
+    const isRect = tent.shape === 'rectangle';
+    const newShapeStr = prompt(`Ange form (Skriv 'R' för Runt eller 'F' för Fyrkantigt):`, isRect ? 'F' : 'R');
+    if (newShapeStr === null) return;
+    const newShape = newShapeStr.toLowerCase().startsWith('f') ? 'rectangle' : 'circle';
+
+    const newWidth = prompt(`Ange ${newShape === 'rectangle' ? 'bredd' : 'diameter'} i meter (t.ex. 4.5):`, tent.width || 4);
+    if (newWidth === null) return;
+
+    let newLength = tent.length || 4;
+    if (newShape === 'rectangle') {
+        const inputLength = prompt(`Ange längd i meter:`, tent.length || 4);
+        if (inputLength === null) return;
+        newLength = parseFloat(inputLength.replace(',', '.'));
+    } else {
+        newLength = parseFloat(newWidth.replace(',', '.'));
+    }
+
     currentDb.inventory[index].name = newName.trim() || tent.name;
     currentDb.inventory[index].capacity = parseInt(newCap) || tent.capacity;
     currentDb.inventory[index].quantityOwned = parseInt(newQty) || tent.quantityOwned;
+    currentDb.inventory[index].shape = newShape;
+    currentDb.inventory[index].width = parseFloat(newWidth.replace(',', '.'));
+    currentDb.inventory[index].length = newLength;
     
     saveInventory();
 }
 
 async function autoAssign() {
-    if (!confirm("Vill du att systemet automatiskt ska placera ut alla oplacerade scouter i lediga tält (sorterat per åldersgrupp)?")) {
-        return;
-    }
+    if (!confirm("Vill du att systemet automatiskt ska placera ut alla oplacerade scouter i lediga tält (sorterat per åldersgrupp)?")) return;
 
     try {
         const response = await fetch('/api/auto-assign', { method: 'POST' });
         const result = await response.json();
-        
-        if (result.success) {
-            // Ladda om skärmen så vi ser den nya fördelningen
-            fetchData();
-        } else {
-            alert("Något gick fel vid auto-fördelningen.");
-        }
+        if (result.success) fetchData();
     } catch (error) {
         console.error("Kunde inte auto-fördela:", error);
     }
 }
 
 async function clearAssignments() {
-    // Säkerhetsfråga så man inte klickar fel av misstag
-    if (!confirm("Är du säker på att du vill tömma alla tält? Inga scouter eller tält kommer att raderas, men alla måste placeras ut på nytt.")) {
-        return;
-    }
+    if (!confirm("Är du säker på att du vill tömma alla tält? Inga scouter eller tält kommer att raderas, men alla måste placeras ut på nytt.")) return;
 
     try {
         const response = await fetch('/api/clear-assignments', { method: 'POST' });
         const result = await response.json();
-        
-        if (result.success) {
-            // Ladda om skärmen så vi ser att alla hamnar i oplacerade
-            fetchData();
-        } else {
-            alert("Något gick fel vid nollställningen.");
-        }
+        if (result.success) fetchData();
     } catch (error) {
         console.error("Kunde inte tömma tälten:", error);
     }
 }
 
+//        KARTVY (V2.1) - CANVAS & LOGIK
+
+let canvas, ctx;
+let mapImage = new Image();
+let draggingTent = null;
+let mapMetersWidth = 100; 
+
+let isCalibrating = false;
+let calibStart = null;
+let calibEnd = null;
+
+function switchView(view) {
+    const btnList = document.getElementById('btn-list-view');
+    const btnMap = document.getElementById('btn-map-view');
+
+    if (view === 'list') {
+        document.getElementById('list-view-container').style.display = 'block';
+        document.getElementById('map-view-container').style.display = 'none';
+        
+        // Flytta markeringen till List-knappen
+        btnList.classList.add('active-view-btn');
+        btnMap.classList.remove('active-view-btn');
+    } else {
+        document.getElementById('list-view-container').style.display = 'none';
+        document.getElementById('map-view-container').style.display = 'block';
+        
+        // Flytta markeringen till Kart-knappen
+        btnList.classList.remove('active-view-btn');
+        btnMap.classList.add('active-view-btn');
+        
+        if (!canvas) initCanvas();
+        updateMapUI();
+    }
+}
+
+function initCanvas() {
+    canvas = document.getElementById('camp-map');
+    ctx = canvas.getContext('2d');
+
+    canvas.onmousedown = mapDragStart;
+    canvas.onmousemove = mapDragMove;
+    window.onmouseup = mapDragEnd; 
+
+    canvas.ontouchstart = mapDragStart;
+    canvas.ontouchmove = mapDragMove;
+    window.ontouchend = mapDragEnd;
+}
+
+function startCalibration() {
+    if (!currentDb || !currentDb.mapConfig || !currentDb.mapConfig.hasMap) {
+        alert("Du måste ladda upp en kartbild först!");
+        return;
+    }
+    
+    if (isCalibrating) {
+        // Avbryt
+        isCalibrating = false;
+        canvas.style.cursor = 'grab';
+        document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
+        document.getElementById('btn-calibrate').innerText = '📐 Kalibrera karta';
+        calibStart = null;
+        calibEnd = null;
+        drawMap();
+        return;
+    }
+    
+    // Starta
+    isCalibrating = true;
+    calibStart = null;
+    calibEnd = null;
+    canvas.style.cursor = 'crosshair';
+    document.getElementById('btn-calibrate').style.backgroundColor = '#d32f2f';
+    document.getElementById('btn-calibrate').innerText = 'Avbryt kalibrering';
+}
+
+function updateMapUI() {
+    if (!currentDb) return;
+
+    const mapConf = currentDb.mapConfig || { hasMap: false, scaleLineMeters: 100, safetyMarginMeters: 4 };
+    document.getElementById('map-width').value = mapConf.scaleLineMeters;
+    document.getElementById('map-safety').value = mapConf.safetyMarginMeters;
+    mapMetersWidth = parseFloat(mapConf.scaleLineMeters);
+
+    const unplacedDiv = document.getElementById('unplaced-tents');
+    unplacedDiv.innerHTML = '';
+
+    currentDb.assignments.forEach(tent => {
+        const inv = currentDb.inventory.find(i => i.id === tent.tentType);
+        if (inv && inv.name.toLowerCase() === 'eget boende') return;
+
+        if (!tent.isPlaced) {
+            unplacedDiv.innerHTML += `
+                <div style="background: #f1f8e9; border: 1px solid #c5e1a5; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${tent.tentNumber} ${tent.customName ? `(${tent.customName})` : ''}</strong>
+                    <button onclick="placeTentOnMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto;">In på karta 📍</button>
+                </div>
+            `;
+        } else {
+            unplacedDiv.innerHTML += `
+                 <div style="background: #eceff1; border: 1px solid #cfd8dc; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; opacity: 0.7; flex-wrap: wrap; gap: 5px;">
+                    <span>✅ ${tent.customName || tent.tentNumber}</span>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="rotateTentOnMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto; background-color: #0288d1;">Vänd 🔄</button>
+                        <button onclick="removeTentFromMap(${tent.tentNumber})" style="padding: 6px 12px; margin: 0; font-size: 12px; width: auto; background-color: #d32f2f;">Ta bort ❌</button>
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    if (mapConf.hasMap && mapConf.imagePath) {
+            mapImage.src = mapConf.imagePath + '?t=' + new Date().getTime();
+            mapImage.onload = () => {
+                // Anpassa ritytans höjd efter bildens verkliga proportioner så inget blir utdraget!
+                const aspectRatio = mapImage.height / mapImage.width;
+                canvas.height = canvas.width * aspectRatio;
+                drawMap();
+            };
+        } else {
+            drawMap();
+        }
+}
+
+function drawMap() {
+    if (!ctx) return;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (currentDb && currentDb.mapConfig && currentDb.mapConfig.hasMap) {
+        ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = '#cfd8dc';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#455a64';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText("Ingen kartbild uppladdad ännu.", canvas.width / 2, canvas.height / 2);
+    }
+
+    if (!currentDb) return;
+
+    const pixelsPerMeter = canvas.width / mapMetersWidth;
+    const safetyMargin = parseFloat(currentDb.mapConfig.safetyMarginMeters) || 4;
+    const placedTents = currentDb.assignments.filter(t => t.isPlaced);
+
+    placedTents.forEach((tent, i) => {
+        const inv = currentDb.inventory.find(item => item.id === tent.tentType);
+        
+        // Hämta form och mått
+        const shape = inv ? (inv.shape || 'circle') : 'circle';
+        let widthM = inv ? (inv.width || 4.0) : 4.0;
+        let lengthM = inv ? (inv.length || 4.0) : 4.0;
+        
+        // --- NYTT: Om tältet är vridet, byt plats på bredd och längd ---
+        if (tent.isRotated) {
+            const temp = widthM;
+            widthM = lengthM;
+            lengthM = temp;
+        }
+        
+        // Tältets storlek i pixlar
+        const wPx = widthM * pixelsPerMeter;
+        const lPx = lengthM * pixelsPerMeter;
+        
+        // Säkerhetszonens storlek (Tältets mått + hela säkerhetsmarginalen)
+        const haloWPx = (widthM + safetyMargin) * pixelsPerMeter;
+        const haloLPx = (lengthM + safetyMargin) * pixelsPerMeter;
+
+        const pxX = (tent.x / 100) * canvas.width;
+        const pxY = (tent.y / 100) * canvas.height;
+
+        // --- KOLLISIONS-MOTOR ---
+        let isColliding = false;
+        for (let j = 0; j < placedTents.length; j++) {
+            if (i === j) continue;
+            const other = placedTents[j];
+            const otherInv = currentDb.inventory.find(item => item.id === other.tentType);
+            
+            const oShape = otherInv ? (otherInv.shape || 'circle') : 'circle';
+            let oWidthM = otherInv ? (otherInv.width || 4.0) : 4.0;
+            let oLengthM = otherInv ? (otherInv.length || 4.0) : 4.0;
+            
+            if (other.isRotated) {
+                const temp = oWidthM;
+                oWidthM = oLengthM;
+                oLengthM = temp;
+            }
+            
+            const oHaloWPx = (oWidthM + safetyMargin) * pixelsPerMeter;
+            const oHaloLPx = (oLengthM + safetyMargin) * pixelsPerMeter;
+            
+            const oPx = (other.x / 100) * canvas.width;
+            const oPy = (other.y / 100) * canvas.height;
+
+            // Steg 1: Fyrkants-krock (AABB). Kolla om deras fyrkantiga "boxar" överlappar.
+            if (pxX - haloWPx/2 < oPx + oHaloWPx/2 &&
+                pxX + haloWPx/2 > oPx - oHaloWPx/2 &&
+                pxY - haloLPx/2 < oPy + oHaloLPx/2 &&
+                pxY + haloLPx/2 > oPy - oHaloLPx/2) {
+                
+                // Steg 2: Om BÅDA är cirklar, gör vi ett extra Pythagoras-test så 
+                // att de inte lyser rött bara för att deras "hörn" nuddar varandra i tomma intet.
+                if (shape === 'circle' && oShape === 'circle') {
+                    const dist = Math.sqrt(Math.pow(pxX - oPx, 2) + Math.pow(pxY - oPy, 2));
+                    if (dist < (haloWPx/2 + oHaloWPx/2)) {
+                        isColliding = true;
+                        break;
+                    }
+                } else {
+                    // Om minst en är en fyrkant, litar vi på överlappningen
+                    isColliding = true; 
+                    break;
+                }
+            }
+        }
+
+        // --- RITA SÄKERHETSZON (Glorian) ---
+        ctx.beginPath();
+        if (shape === 'rectangle') {
+            ctx.rect(pxX - haloWPx/2, pxY - haloLPx/2, haloWPx, haloLPx);
+        } else {
+            ctx.arc(pxX, pxY, haloWPx/2, 0, 2 * Math.PI);
+        }
+        ctx.fillStyle = isColliding ? 'rgba(244, 67, 54, 0.4)' : 'rgba(255, 193, 7, 0.3)';
+        ctx.fill();
+        ctx.strokeStyle = isColliding ? '#d32f2f' : '#ffa000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // --- RITA SJÄLVA TÄLTET ---
+        ctx.beginPath();
+        if (shape === 'rectangle') {
+            ctx.rect(pxX - wPx/2, pxY - lPx/2, wPx, lPx);
+        } else {
+            ctx.arc(pxX, pxY, wPx/2, 0, 2 * Math.PI);
+        }
+        ctx.fillStyle = draggingTent === tent.tentNumber ? '#1976d2' : '#388e3c';
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // --- RITA TEXT (Tältnummer) ---
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tent.customName || tent.tentNumber, pxX, pxY);
+    });
+
+    // Rita kalibreringslinjen om man håller på att kalibrera
+    if (calibStart && calibEnd) {
+        ctx.beginPath();
+        ctx.moveTo(calibStart.x, calibStart.y);
+        ctx.lineTo(calibEnd.x, calibEnd.y);
+        ctx.strokeStyle = '#f44336'; 
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(calibStart.x, calibStart.y, 6, 0, 2*Math.PI);
+        ctx.arc(calibEnd.x, calibEnd.y, 6, 0, 2*Math.PI);
+        ctx.fillStyle = '#f44336';
+        ctx.fill();
+    }
+}
+
+function getMousePos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
+}
+
+function mapDragStart(e) {
+    if (!currentDb) return;
+    const pos = getMousePos(e);
+
+    if (isCalibrating) {
+        calibStart = pos;
+        calibEnd = pos;
+        if (e.touches) e.preventDefault();
+        return;
+    }
+
+    const pixelsPerMeter = canvas.width / mapMetersWidth;
+    currentDb.assignments.filter(t => t.isPlaced).forEach(tent => {
+        const inv = currentDb.inventory.find(i => i.id === tent.tentType);
+        
+        // Hitta den längsta sidan för att fånga musklick oavsett form
+        const maxDimMeters = inv ? Math.max((inv.width || 4.0), (inv.length || 4.0)) : 4.0;
+        const tentClickRadiusPx = (maxDimMeters / 2) * pixelsPerMeter; 
+        
+        const pxX = (tent.x / 100) * canvas.width;
+        const pxY = (tent.y / 100) * canvas.height;
+
+        const dist = Math.sqrt(Math.pow(pos.x - pxX, 2) + Math.pow(pos.y - pxY, 2));
+        if (dist <= tentClickRadiusPx) {
+            draggingTent = tent.tentNumber;
+            canvas.style.cursor = 'grabbing';
+            if (e.touches) e.preventDefault();
+        }
+    });
+}
+
+function mapDragMove(e) {
+    if (isCalibrating && calibStart) {
+        calibEnd = getMousePos(e);
+        drawMap(); 
+        if (e.touches) e.preventDefault();
+        return;
+    }
+
+    if (!draggingTent || !currentDb) return;
+    if (e.touches) e.preventDefault(); 
+    
+    const pos = getMousePos(e);
+    const tent = currentDb.assignments.find(t => t.tentNumber === draggingTent);
+    
+    let newX = (pos.x / canvas.width) * 100;
+    let newY = (pos.y / canvas.height) * 100;
+    newX = Math.max(0, Math.min(100, newX));
+    newY = Math.max(0, Math.min(100, newY));
+
+    tent.x = newX;
+    tent.y = newY;
+    
+    drawMap(); 
+}
+
+async function mapDragEnd(e) {
+    // Om vi släpper musen under kalibrering
+    if (isCalibrating && calibStart && calibEnd) {
+        const distPx = Math.sqrt(Math.pow(calibEnd.x - calibStart.x, 2) + Math.pow(calibEnd.y - calibStart.y, 2));
+
+        isCalibrating = false;
+        canvas.style.cursor = 'grab';
+        document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
+        document.getElementById('btn-calibrate').innerText = '📐 Kalibrera karta';
+
+        if (distPx > 10) { // Måste ha dragit en synlig sträcka
+            const metersStr = prompt("Hur många meter är den röda linjen i verkligheten? (t.ex. '15')");
+            if (metersStr && !isNaN(parseFloat(metersStr.replace(',', '.')))) {
+                const meters = parseFloat(metersStr.replace(',', '.'));
+                
+                // Matematik: Om linjen är X pixlar och motsvarar Y meter, hur många meter är då hela ritytan?
+                const totalMapMeters = (canvas.width / distPx) * meters;
+                document.getElementById('map-width').value = totalMapMeters;
+                
+                await updateMapSettings();
+                alert(`Skalan inställd! Kartan är nu kalibrerad till ${Math.round(totalMapMeters)} meter bred.`);
+            }
+        }
+        calibStart = null;
+        calibEnd = null;
+        drawMap();
+        return;
+    } else if (isCalibrating) { // Avbröt genom att klicka utan att dra
+        isCalibrating = false;
+        canvas.style.cursor = 'grab';
+        document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
+        document.getElementById('btn-calibrate').innerText = '📐 Kalibrera karta';
+        return;
+    }
+
+    // Vanligt tält-släpp
+    if (!draggingTent || !currentDb) return;
+    const tent = currentDb.assignments.find(t => t.tentNumber === draggingTent);
+    const number = draggingTent;
+    draggingTent = null;
+    canvas.style.cursor = 'grab';
+
+    await fetch(`/api/tents/position/${number}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: tent.x, y: tent.y, isPlaced: true, isRotated: tent.isRotated })
+    });
+}
+
+async function uploadMap(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        await fetch('/api/map/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: e.target.result })
+        });
+        fetchData();
+    };
+    reader.readAsDataURL(file);
+}
+
+async function updateMapSettings() {
+    const width = document.getElementById('map-width').value;
+    const margin = document.getElementById('map-safety').value;
+    await fetch('/api/map/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scaleLineMeters: width, safetyMarginMeters: margin })
+    });
+    fetchData();
+}
+
+async function placeTentOnMap(tentNumber) {
+    await fetch(`/api/tents/position/${tentNumber}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: 50, y: 50, isPlaced: true }) 
+    });
+    fetchData();
+}
+
+async function removeTentFromMap(tentNumber) {
+    await fetch(`/api/tents/position/${tentNumber}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: null, y: null, isPlaced: false })
+    });
+    fetchData();
+}
+
+async function rotateTentOnMap(tentNumber) {
+    const tent = currentDb.assignments.find(t => t.tentNumber === tentNumber);
+    if (!tent) return;
+    
+    // Byt vridning: Är den true blir den false, är den false blir den true
+    tent.isRotated = !tent.isRotated;
+    
+    await fetch(`/api/tents/position/${tentNumber}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x: tent.x, y: tent.y, isPlaced: true, isRotated: tent.isRotated })
+    });
+    fetchData(); // Ladda om kartan
+}
+
+// Initiera systemet vid sidladdning (Låter denna ligga kvar sist i filen)
 fetchData();
