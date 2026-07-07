@@ -1,6 +1,7 @@
 _Arkiv/
 node_modules/
 .env
+maintenance.sh
 tmp/
 *.pdf
 *.log
