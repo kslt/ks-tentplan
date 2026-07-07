@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Kasper Sjöström. All rights reserved. License: AGPL-3.0 license. www.kswebb.se - Thanks to Gemini for helping me out with this project.
 const express = require('express');
-const VERSION = '2.1.3';
+const VERSION = '2.1.5';
 const fs = require('fs');
 const path = require('path');
 const generatePDF = require('./pdfGenerator');

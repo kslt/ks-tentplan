@@ -59,7 +59,7 @@ function renderSystem() {
         card.setAttribute('ondrop', `handleDrop(event, ${assignment.tentNumber})`);
 
        let occupantsHtml = '';
-        assignment.occupants.forEach(person => {
+        assignment.occupants.sort((a, b) => a.localeCompare(b, 'sv')).forEach(person => {
             placedParticipants.push(person);
             const personClass = getPersonClass(person);
             
@@ -120,8 +120,8 @@ function renderSystem() {
     
     unassignedPool.ondragover = (e) => e.preventDefault();
     unassignedPool.setAttribute('ondrop', `handleDrop(event, 'pool')`);
-
-    unassigned.forEach(person => {
+    
+    unassigned.sort((a, b) => a.localeCompare(b, 'sv')).forEach(person => {
         const personClass = getPersonClass(person);
         unassignedPool.innerHTML += `
             <span class="person-tag ${personClass}" 
