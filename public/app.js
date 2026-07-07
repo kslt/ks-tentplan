@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Kasper Sjöström. All rights reserved. www.kswebb.se
+// Copyright (c) 2026 Kasper Sjöström. All rights reserved. License: AGPL-3.0 license. www.kswebb.se - Thanks to Gemini for helping me out with this project.
 let currentDb = null;
 
 function getPersonClass(person) {
