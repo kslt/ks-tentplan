@@ -68,7 +68,7 @@ function renderSystem() {
                       draggable="true" 
                       ondragstart="handleDragStart(event, '${person}', ${index})">
                     ${person}
-                    <span style="color: #c62828; cursor: pointer; margin-left: 6px; font-weight: bold; font-size: 16px;" 
+                    <span style="color: #ffffff; cursor: pointer; margin-left: 6px; font-weight: bold; font-size: 16px;" 
                           onclick="deletePerson('${person}')" 
                           title="Ta bort ${person}">&times;</span>
                 </span>`;
@@ -80,7 +80,6 @@ function renderSystem() {
             cardTitle = assignment.customName;
         }
 
-        // --- RÄKNARE OCH VARNING ---
         const capacity = tentInfo ? tentInfo.capacity : 0;
         const currentCount = assignment.occupants.length;
         const isOverfull = !isEgetBoende && (currentCount > capacity);
@@ -89,7 +88,6 @@ function renderSystem() {
             ? `Beläggning: ${currentCount} pers` 
             : `Beläggning: ${currentCount} / ${capacity} pers`;
 
-        // Färglägg och varna om det är överfullt
         if (isOverfull) {
             countText = `<span style="color: #d32f2f; font-weight: bold;">⚠️ ${countText} (Överfullt!)</span>`;
         } else {
@@ -138,7 +136,6 @@ function renderSystem() {
 }
 
 function handleDragStart(e, person, fromTentIndex) {
-    // FIX: Etiketten måste vara 'text/plain' för att matcha handleDrop
     e.dataTransfer.setData('text/plain', person);
     e.dataTransfer.setData('fromTentIndex', fromTentIndex);
 }
@@ -147,7 +144,7 @@ async function handleDrop(e, targetTentNumber) {
     e.preventDefault();
     const personName = e.dataTransfer.getData('text/plain');
     
-    if (!personName) return; // Stoppa om vi råkade dra fel sak
+    if (!personName) return;
 
     const targetAssignment = currentDb.assignments.find(a => a.tentNumber === parseInt(targetTentNumber));
     
@@ -359,7 +356,7 @@ function addInventoryTent() {
         return;
     }
 
-    if (shape === 'circle') length = width; // Normalisera så databasen är städad
+    if (shape === 'circle') length = width;
 
     if (currentDb.inventory.find(t => t.id === id)) {
         alert("En tälttyp med det ID:t finns redan.");
@@ -455,8 +452,6 @@ async function clearAssignments() {
         console.error("Kunde inte tömma tälten:", error);
     }
 }
-
-//        KARTVY (V2.1) - CANVAS & LOGIK
 
 let canvas, ctx;
 let mapImage = new Image();
@@ -567,16 +562,17 @@ function updateMapUI() {
     });
 
     if (mapConf.hasMap && mapConf.imagePath) {
-            mapImage.src = mapConf.imagePath + '?t=' + new Date().getTime();
-            mapImage.onload = () => {
-                // Anpassa ritytans höjd efter bildens verkliga proportioner så inget blir utdraget!
+        mapImage.src = mapConf.imagePath + '?t=' + new Date().getTime();
+        mapImage.onload = () => {
+            if (canvas) {
                 const aspectRatio = mapImage.height / mapImage.width;
                 canvas.height = canvas.width * aspectRatio;
-                drawMap();
-            };
-        } else {
+            }
             drawMap();
-        }
+        };
+    } else {
+        drawMap();
+    }
 }
 
 function drawMap() {
@@ -794,7 +790,6 @@ function mapDragMove(e) {
 }
 
 async function mapDragEnd(e) {
-    // Om vi släpper musen under kalibrering
     if (isCalibrating && calibStart && calibEnd) {
         const distPx = Math.sqrt(Math.pow(calibEnd.x - calibStart.x, 2) + Math.pow(calibEnd.y - calibStart.y, 2));
 
@@ -803,12 +798,11 @@ async function mapDragEnd(e) {
         document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
         document.getElementById('btn-calibrate').innerText = '📐 Kalibrera karta';
 
-        if (distPx > 10) { // Måste ha dragit en synlig sträcka
+        if (distPx > 10) {
             const metersStr = prompt("Hur många meter är den röda linjen i verkligheten? (t.ex. '15')");
             if (metersStr && !isNaN(parseFloat(metersStr.replace(',', '.')))) {
                 const meters = parseFloat(metersStr.replace(',', '.'));
                 
-                // Matematik: Om linjen är X pixlar och motsvarar Y meter, hur många meter är då hela ritytan?
                 const totalMapMeters = (canvas.width / distPx) * meters;
                 document.getElementById('map-width').value = totalMapMeters;
                 
@@ -820,7 +814,7 @@ async function mapDragEnd(e) {
         calibEnd = null;
         drawMap();
         return;
-    } else if (isCalibrating) { // Avbröt genom att klicka utan att dra
+    } else if (isCalibrating) {
         isCalibrating = false;
         canvas.style.cursor = 'grab';
         document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
@@ -828,7 +822,6 @@ async function mapDragEnd(e) {
         return;
     }
 
-    // Vanligt tält-släpp
     if (!draggingTent || !currentDb) return;
     const tent = currentDb.assignments.find(t => t.tentNumber === draggingTent);
     const number = draggingTent;
@@ -890,7 +883,6 @@ async function rotateTentOnMap(tentNumber) {
     const tent = currentDb.assignments.find(t => t.tentNumber === tentNumber);
     if (!tent) return;
     
-    // Byt vridning: Är den true blir den false, är den false blir den true
     tent.isRotated = !tent.isRotated;
     
     await fetch(`/api/tents/position/${tentNumber}`, {
@@ -898,8 +890,7 @@ async function rotateTentOnMap(tentNumber) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x: tent.x, y: tent.y, isPlaced: true, isRotated: tent.isRotated })
     });
-    fetchData(); // Ladda om kartan
+    fetchData();
 }
 
-// Initiera systemet vid sidladdning (Låter denna ligga kvar sist i filen)
 fetchData();

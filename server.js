@@ -18,10 +18,8 @@ app.get('/api/data', (req, res) => {
 app.post('/api/assignments', (req, res) => {
     const db = getDb();
     
-    // req.body innehåller den nya arrayen med tältindelningar som vi skickar från webbsidan
     db.assignments = req.body; 
-    
-    // Spara ner det till vår fil
+
     const dbPath = path.join(__dirname, 'data.json');
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
     
@@ -32,8 +30,7 @@ app.post('/api/participants', (req, res) => {
     try {
         const db = getDb();
         const { name, group } = req.body;
-        
-        // Lägg in personen i rätt array
+
         if (group === 'leaders') {
             db.participants.leaders.push(name);
         } else {
@@ -66,7 +63,6 @@ app.delete('/api/participants', (req, res) => {
             assignment.occupants = assignment.occupants.filter(p => p !== name);
         });
 
-        // Spara ändringarna
         const dbPath = path.join(__dirname, 'data.json');
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
         
@@ -81,12 +77,10 @@ app.post('/api/tents', (req, res) => {
         const db = getDb();
         const { tentType } = req.body;
         
-        // Hitta nästa lediga tältnummer
         const nextNumber = db.assignments.length > 0 
             ? Math.max(...db.assignments.map(a => a.tentNumber)) + 1 
             : 1;
 
-        // Skapa ett nytt tomt tält
         db.assignments.push({
             tentType: tentType,
             tentNumber: nextNumber,
@@ -109,7 +103,7 @@ app.put('/api/tents/:number', (req, res) => {
 
         const tent = db.assignments.find(t => t.tentNumber === tentNumber);
         if (tent) {
-            tent.customName = customName; // Spara det nya namnet
+            tent.customName = customName;
             const dbPath = path.join(__dirname, 'data.json');
             fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
             res.json({ success: true });
@@ -126,7 +120,6 @@ app.post('/api/auto-assign', (req, res) => {
     try {
         const db = getDb();
 
-        // Hjälpfunktion för att ta reda på vilken grupp en person tillhör
         function getGroup(name) {
             if (db.participants.leaders.includes(name)) return 'leaders';
             if (db.participants.scouts.sparare.includes(name)) return 'sparare';
@@ -159,18 +152,15 @@ app.post('/api/auto-assign', (req, res) => {
             db.assignments.forEach(tent => {
                 const tentInfo = db.inventory.find(t => t.id === tent.tentType);
                 const capacity = tentInfo ? tentInfo.capacity : 0;
-                
-                // Om det finns plats kvar i tältet och vi har personer kvar att placera
+
                 if (peopleToPlace.length > 0 && tent.occupants.length < capacity) {
                     
-                    // Kolla om tältet är tomt ELLER om det redan tillhör denna grupp
                     let isThisGroupTent = true;
                     if (tent.occupants.length > 0) {
                         const firstOccupantGroup = getGroup(tent.occupants[0]);
                         isThisGroupTent = (firstOccupantGroup === group);
                     }
                     
-                    // Fyll på tältet!
                     if (isThisGroupTent) {
                         while (peopleToPlace.length > 0 && tent.occupants.length < capacity) {
                             tent.occupants.push(peopleToPlace.shift());
@@ -180,7 +170,6 @@ app.post('/api/auto-assign', (req, res) => {
             });
         });
 
-        // Spara den nya fördelningen till databasen
         const dbPath = path.join(__dirname, 'data.json');
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
         
@@ -195,7 +184,6 @@ app.post('/api/clear-assignments', (req, res) => {
     try {
         const db = getDb();
         
-        // Töm 'occupants'-arrayen för varje uppslaget tält
         db.assignments.forEach(tent => {
             tent.occupants = [];
         });
@@ -217,11 +205,8 @@ app.delete('/api/tents', (req, res) => {
 
         if (tentNumber === undefined) return res.status(400).json({ error: "Tältnummer saknas" });
 
-        // Ta bort tältet från listan. 
-        // Eftersom personerna inte tas bort från deltagarlistan blir de automatiskt "oplacerade" i frontenden.
         db.assignments = db.assignments.filter(a => a.tentNumber !== parseInt(tentNumber));
 
-        // Spara ändringarna
         const dbPath = path.join(__dirname, 'data.json');
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
         
@@ -234,8 +219,7 @@ app.delete('/api/tents', (req, res) => {
 app.put('/api/inventory', (req, res) => {
     try {
         const db = getDb();
-        db.inventory = req.body; // req.body är den nya arrayen med tälttyper
-        
+        db.inventory = req.body;
         const dbPath = path.join(__dirname, 'data.json');
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
         
@@ -253,7 +237,6 @@ function getDb() {
 app.get('/api/status', (req, res) => {
     const db = getDb();
     
-    // Räkna personer
     const numLeaders = db.participants.leaders.length;
     const numScouts = 
         db.participants.scouts.sparare.length + 
@@ -262,7 +245,6 @@ app.get('/api/status', (req, res) => {
         db.participants.scouts.ledarbarn.length;
     const totalPeople = numLeaders + numScouts;
 
-    // Räkna tältkapacitet
     let totalCapacity = 0;
     db.inventory.forEach(tent => {
         totalCapacity += (tent.capacity * tent.quantityOwned);
@@ -279,7 +261,7 @@ app.get('/api/status', (req, res) => {
         message: isEnough 
             ? "Tälten räcker till alla!" 
             : `Varning! Ni saknar sovplatser för ${missingSpots} personer.`,
-        version: VERSION // <-- NYTT
+        version: VERSION
     });
 });
 
@@ -303,13 +285,10 @@ app.get('/api/report', (req, res) => {
     }
 });
 
-//        KARTFUNKTIONER (V2.0 BACKEND)
-
-// 1. HÄMTA KARTKONFIGURATION OCH STATUS
+// Kartfunktioner
 app.get('/api/map/config', (req, res) => {
     try {
         const db = getDb();
-        // Om mapConfig saknas helt i en gammal data.json, skapa en standard
         if (!db.mapConfig) {
             db.mapConfig = { hasMap: false, imagePath: null, scaleLineMeters: 10, scaleLinePixels: 100, safetyMarginMeters: 4 };
         }
@@ -319,7 +298,6 @@ app.get('/api/map/config', (req, res) => {
     }
 });
 
-// 2. LADDA UPP KARTBILD OCH SPARA INSTÄLLNINGAR
 app.post('/api/map/upload', (req, res) => {
     try {
         const db = getDb();
@@ -327,7 +305,6 @@ app.post('/api/map/upload', (req, res) => {
 
         if (!db.mapConfig) db.mapConfig = {};
 
-        // Om användaren skickar med en ny bild
         if (imageBase64) {
             // Skapa en 'uploads'-mapp inuti public om den inte finns
             const uploadDir = path.join(__dirname, 'public', 'uploads');
@@ -335,9 +312,8 @@ app.post('/api/map/upload', (req, res) => {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
 
-            // Tvätta bort base64-headern (t.ex. "data:image/png;base64,") så bara ren fildata återstår
             const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-            const filename = `layouthandling_${Date.now()}.png`; // Unikt filnamn för att undvika cache-problem
+            const filename = `layouthandling_${Date.now()}.png`;
             const filePath = path.join(uploadDir, filename);
 
             // Spara bilden på serverns hårddisk
@@ -361,7 +337,6 @@ app.post('/api/map/upload', (req, res) => {
     }
 });
 
-// 3. SPARA ETT TÄLTS POSITION PÅ KARTAN
 app.put('/api/tents/position/:number', (req, res) => {
     try {
         const db = getDb();
@@ -373,7 +348,7 @@ app.put('/api/tents/position/:number', (req, res) => {
             tent.x = x !== null ? parseFloat(x) : null;
             tent.y = y !== null ? parseFloat(y) : null;
             tent.isPlaced = !!isPlaced;
-            tent.isRotated = !!isRotated; // NY: Spara om tältet är vridet 90 grader
+            tent.isRotated = !!isRotated;
 
             if (scaleLinePixels !== undefined && db.mapConfig) {
                 db.mapConfig.scaleLinePixels = parseInt(scaleLinePixels);
@@ -389,7 +364,6 @@ app.put('/api/tents/position/:number', (req, res) => {
     }
 });
 
-// 4. UPPDATERA ETT TÄLTS FYSISKA DIMENSIONER I LAGRET
 app.put('/api/inventory/dimensions/:id', (req, res) => {
     try {
         const db = getDb();
@@ -398,8 +372,8 @@ app.put('/api/inventory/dimensions/:id', (req, res) => {
 
         const tent = db.inventory.find(t => t.id === tentId);
         if (tent) {
-            tent.shape = shape || 'circle'; // 'circle' eller 'rectangle'
-            tent.width = parseFloat(width) || 4.0; // standard 4 meter bred/diameter
+            tent.shape = shape || 'circle';
+            tent.width = parseFloat(width) || 4.0;
             tent.length = parseFloat(length) || 4.0;
 
             fs.writeFileSync(path.join(__dirname, 'data.json'), JSON.stringify(db, null, 2), 'utf8');
@@ -412,11 +386,9 @@ app.put('/api/inventory/dimensions/:id', (req, res) => {
     }
 });
 
-// SPARA HELA DATABASEN (För drag-and-drop i listan)
 app.post('/api/save', (req, res) => {
     try {
         const dbPath = path.join(__dirname, 'data.json');
-        // Sparar den uppdaterade datan över den gamla filen
         fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
         res.json({ success: true });
     } catch (error) {

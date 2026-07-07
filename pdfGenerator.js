@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 function generatePDF(db, version, outputPath, callback) {
-    // Sätter en generös bottenmarginal (120) så att den högre sidfoten får plats
     const doc = new PDFDocument({ 
         bufferPages: true, 
         margins: { top: 50, bottom: 120, left: 50, right: 50 } 
@@ -23,12 +22,10 @@ function generatePDF(db, version, outputPath, callback) {
         return 'Okänd';
     }
 
-    // --- HUVUDRUBRIK ---
     doc.fontSize(22).text('Tältplanering: Scoutläger', { align: 'center' });
-    doc.moveDown(1.5);
+    doc.moveDown(0.5);
 
-    // --- 1. SAMMANFATTNING & PLOCKLISTA ---
-    doc.fontSize(16).text('Plocklista - Tält att ta med');
+    doc.fontSize(14).text('Plocklista - Tält att ta med');
     doc.fontSize(12).moveDown(0.5);
     
     const packedTents = {};
@@ -52,10 +49,9 @@ function generatePDF(db, version, outputPath, callback) {
         }
     });
     doc.moveDown(2);
-
-    // --- 2. TÄLTINDELNING MED ÅLDERSGRUPPER ---
-    doc.fontSize(16).text('Tältindelning - Vem sover var?');
-    doc.moveDown(0.5);
+-
+    doc.fontSize(14).text('Tältindelning - Vem sover var?');
+    doc.fontSize(12).moveDown(0.5);
 
     db.assignments.forEach(assignment => {
         const tentInfo = db.inventory.find(t => t.id === assignment.tentType);
@@ -87,33 +83,29 @@ function generatePDF(db, version, outputPath, callback) {
         doc.moveDown();
     });
 
-    // --- 3. ÖVERSIKTSKARTA (UPPDATERAD V2.0 FORMER & ROTATIONER) ---
     if (db.mapConfig && db.mapConfig.hasMap && db.mapConfig.imagePath) {
         doc.addPage();
         
-        doc.fontSize(16).fillColor('black').text('3. Layoutskiss - Lägerområde');
+        doc.fontSize(16).fillColor('black').text('Layoutskiss - Lägerområde');
         doc.fontSize(11).moveDown(0.5);
         doc.text('Gula/Röda zoner visar MSB säkerhetsavstånd. Röd zon indikerar att tält står för nära varandra.');
         doc.moveDown(1);
 
-        // Bestäm bredd på kartan i PDF:en (A4 bredd minus marginaler = 495 punkter)
         const pdfMapWidth = 495;
-        let pdfMapHeight = 371; // Standard-fallback (4:3)
+        let pdfMapHeight = 371;
         
         const mapStartX = doc.x;
         const mapStartY = doc.y;
 
         const absoluteImagePath = path.join(__dirname, 'public', db.mapConfig.imagePath);
         
-        // Rita bakgrundskartan och räkna ut dynamisk höjd baserat på bildens proportioner
         if (fs.existsSync(absoluteImagePath)) {
             try {
                 const img = doc.openImage(absoluteImagePath);
                 const aspectRatio = img.height / img.width;
-                pdfMapHeight = pdfMapWidth * aspectRatio; // Perfekt proportioner!
+                pdfMapHeight = pdfMapWidth * aspectRatio;
                 doc.image(img, mapStartX, mapStartY, { width: pdfMapWidth, height: pdfMapHeight });
             } catch (e) {
-                // Om något skiter sig med bildanalysen, kör standard-skalning
                 doc.image(absoluteImagePath, mapStartX, mapStartY, { width: pdfMapWidth, height: pdfMapHeight });
             }
         }
@@ -137,7 +129,6 @@ function generatePDF(db, version, outputPath, callback) {
             let widthM = inv ? (inv.width || 4.0) : 4.0;
             let lengthM = inv ? (inv.length || 4.0) : 4.0;
             
-            // Hantera rotation i PDF:en
             if (tent.isRotated) {
                 const temp = widthM;
                 widthM = lengthM;
@@ -150,11 +141,9 @@ function generatePDF(db, version, outputPath, callback) {
             const haloWPx = (widthM + safetyMargin) * pixelsPerMeter;
             const haloLPx = (lengthM + safetyMargin) * pixelsPerMeter;
 
-            // Omvandla procentkoordinater till PDF-punkter på ängen
             const pxX = mapStartX + ((tent.x / 100) * pdfMapWidth);
             const pxY = mapStartY + ((tent.y / 100) * pdfMapHeight);
 
-            // Avancerad Kollisionslogik (AABB-boxar) för PDF:en så färgerna matchar skärmen exakt
             let isColliding = false;
             for (let j = 0; j < placedTents.length; j++) {
                 if (i === j) continue;
@@ -196,7 +185,7 @@ function generatePDF(db, version, outputPath, callback) {
             }
 
             // 1. RITA SÄKERHETSZONEN (Glorian)
-            doc.save(); // Sparar grafik-tillstånd för opacitet
+            doc.save();
             doc.opacity(0.4);
             
             if (shape === 'rectangle') {
@@ -205,11 +194,11 @@ function generatePDF(db, version, outputPath, callback) {
                 doc.circle(pxX, pxY, haloWPx/2);
             }
             
-            doc.fillColor(isColliding ? '#e57373' : '#fff176') // Softare röd/gul för PDF-print
+            doc.fillColor(isColliding ? '#e57373' : '#fff176')
                .strokeColor(isColliding ? '#d32f2f' : '#fbc02d')
                .lineWidth(1)
                .fillAndStroke();
-            doc.restore(); // Återställer opaciteten till 1.0 direkt
+            doc.restore();
 
             // 2. RITA SJÄLVA TÄLTET
             if (shape === 'rectangle') {
@@ -229,7 +218,6 @@ function generatePDF(db, version, outputPath, callback) {
                .text(tent.tentNumber.toString(), pxX - 10, pxY - 5, { width: 20, align: 'center' });
         });
 
-        // Återställ textinställningar efter kartritandet
         doc.fillColor('black').fontSize(12);
     }
 
@@ -243,14 +231,12 @@ function generatePDF(db, version, outputPath, callback) {
         
         const footerStartY = doc.page.height - 105;
 
-        // Linje ovanför sidfoten
         doc.moveTo(50, footerStartY)
            .lineTo(doc.page.width - 50, footerStartY)
            .strokeColor('#cfd8dc')
            .lineWidth(1)
            .stroke();
 
-        // Rad 1: Kårens text
         doc.fontSize(9)
            .fillColor('#546e7a')
            .text('TentPlan - Det smarta tältplaneringsverktyget | Alltid redo!', 50, footerStartY + 15, { 
@@ -258,20 +244,17 @@ function generatePDF(db, version, outputPath, callback) {
                width: doc.page.width - 100 
            });
            
-        // Rad 2: Partner-text
         doc.text('Utvecklat av och i samarbete med KS Webb (www.kswebb.se)', 50, footerStartY + 27, { 
                align: 'center', 
                width: doc.page.width - 100 
            });
 
-        // Centrerad logga under texten
         if (fs.existsSync(logoPath)) {
             const logoWidth = 75;
             const logoX = (doc.page.width - logoWidth) / 2;
             doc.image(logoPath, logoX, footerStartY + 45, { width: logoWidth });
         }
 
-        // Rad 4: Versionsnummer
         doc.text(`Systemversion ${version}`, 50, footerStartY + 75, { 
             align: 'center', 
             width: doc.page.width - 100 
@@ -282,7 +265,6 @@ function generatePDF(db, version, outputPath, callback) {
             width: doc.page.width - 100 
         });
 
-        // Sidnummer
         doc.text(`Sida ${i + 1} av ${range.count}`, doc.page.width - 150, doc.page.height - 40, { 
             width: 100, 
             align: 'right', 
