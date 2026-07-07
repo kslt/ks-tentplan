@@ -366,7 +366,6 @@ function addInventoryTent() {
     currentDb.inventory.push({ id, name, capacity, quantityOwned: qty, shape, width, length });
     saveInventory();
 
-    // Rensa fälten
     document.getElementById('inv-id').value = '';
     document.getElementById('inv-name').value = '';
     document.getElementById('inv-cap').value = '';
@@ -470,14 +469,12 @@ function switchView(view) {
         document.getElementById('list-view-container').style.display = 'block';
         document.getElementById('map-view-container').style.display = 'none';
         
-        // Flytta markeringen till List-knappen
         btnList.classList.add('active-view-btn');
         btnMap.classList.remove('active-view-btn');
     } else {
         document.getElementById('list-view-container').style.display = 'none';
         document.getElementById('map-view-container').style.display = 'block';
         
-        // Flytta markeringen till Kart-knappen
         btnList.classList.remove('active-view-btn');
         btnMap.classList.add('active-view-btn');
         
@@ -506,7 +503,6 @@ function startCalibration() {
     }
     
     if (isCalibrating) {
-        // Avbryt
         isCalibrating = false;
         canvas.style.cursor = 'grab';
         document.getElementById('btn-calibrate').style.backgroundColor = '#0288d1';
@@ -517,7 +513,6 @@ function startCalibration() {
         return;
     }
     
-    // Starta
     isCalibrating = true;
     calibStart = null;
     calibEnd = null;
@@ -600,30 +595,25 @@ function drawMap() {
     placedTents.forEach((tent, i) => {
         const inv = currentDb.inventory.find(item => item.id === tent.tentType);
         
-        // Hämta form och mått
         const shape = inv ? (inv.shape || 'circle') : 'circle';
         let widthM = inv ? (inv.width || 4.0) : 4.0;
         let lengthM = inv ? (inv.length || 4.0) : 4.0;
         
-        // --- NYTT: Om tältet är vridet, byt plats på bredd och längd ---
         if (tent.isRotated) {
             const temp = widthM;
             widthM = lengthM;
             lengthM = temp;
         }
         
-        // Tältets storlek i pixlar
         const wPx = widthM * pixelsPerMeter;
         const lPx = lengthM * pixelsPerMeter;
         
-        // Säkerhetszonens storlek (Tältets mått + hela säkerhetsmarginalen)
         const haloWPx = (widthM + safetyMargin) * pixelsPerMeter;
         const haloLPx = (lengthM + safetyMargin) * pixelsPerMeter;
 
         const pxX = (tent.x / 100) * canvas.width;
         const pxY = (tent.y / 100) * canvas.height;
 
-        // --- KOLLISIONS-MOTOR ---
         let isColliding = false;
         for (let j = 0; j < placedTents.length; j++) {
             if (i === j) continue;
@@ -646,14 +636,11 @@ function drawMap() {
             const oPx = (other.x / 100) * canvas.width;
             const oPy = (other.y / 100) * canvas.height;
 
-            // Steg 1: Fyrkants-krock (AABB). Kolla om deras fyrkantiga "boxar" överlappar.
             if (pxX - haloWPx/2 < oPx + oHaloWPx/2 &&
                 pxX + haloWPx/2 > oPx - oHaloWPx/2 &&
                 pxY - haloLPx/2 < oPy + oHaloLPx/2 &&
                 pxY + haloLPx/2 > oPy - oHaloLPx/2) {
                 
-                // Steg 2: Om BÅDA är cirklar, gör vi ett extra Pythagoras-test så 
-                // att de inte lyser rött bara för att deras "hörn" nuddar varandra i tomma intet.
                 if (shape === 'circle' && oShape === 'circle') {
                     const dist = Math.sqrt(Math.pow(pxX - oPx, 2) + Math.pow(pxY - oPy, 2));
                     if (dist < (haloWPx/2 + oHaloWPx/2)) {
@@ -661,14 +648,12 @@ function drawMap() {
                         break;
                     }
                 } else {
-                    // Om minst en är en fyrkant, litar vi på överlappningen
                     isColliding = true; 
                     break;
                 }
             }
         }
 
-        // --- RITA SÄKERHETSZON (Glorian) ---
         ctx.beginPath();
         if (shape === 'rectangle') {
             ctx.rect(pxX - haloWPx/2, pxY - haloLPx/2, haloWPx, haloLPx);
@@ -681,7 +666,6 @@ function drawMap() {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // --- RITA SJÄLVA TÄLTET ---
         ctx.beginPath();
         if (shape === 'rectangle') {
             ctx.rect(pxX - wPx/2, pxY - lPx/2, wPx, lPx);
@@ -694,7 +678,6 @@ function drawMap() {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // --- RITA TEXT (Tältnummer) ---
         ctx.fillStyle = 'white';
         ctx.font = 'bold 16px Arial';
         ctx.textAlign = 'center';
@@ -702,7 +685,6 @@ function drawMap() {
         ctx.fillText(tent.customName || tent.tentNumber, pxX, pxY);
     });
 
-    // Rita kalibreringslinjen om man håller på att kalibrera
     if (calibStart && calibEnd) {
         ctx.beginPath();
         ctx.moveTo(calibStart.x, calibStart.y);
@@ -748,7 +730,6 @@ function mapDragStart(e) {
     currentDb.assignments.filter(t => t.isPlaced).forEach(tent => {
         const inv = currentDb.inventory.find(i => i.id === tent.tentType);
         
-        // Hitta den längsta sidan för att fånga musklick oavsett form
         const maxDimMeters = inv ? Math.max((inv.width || 4.0), (inv.length || 4.0)) : 4.0;
         const tentClickRadiusPx = (maxDimMeters / 2) * pixelsPerMeter; 
         
